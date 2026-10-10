@@ -51,13 +51,29 @@ SOURCES = [
     ("animals", "Commons:Featured pictures/Animals/Mammals", 9),
     ("animals", "Commons:Featured pictures/Animals/Birds", 7),
     ("plants", "Commons:Featured pictures/Plants", 5),
-    ("art", "discover:Paintings", 22),
-    ("art", "search:Thirty-six Views of Mount Fuji", 12),
+    ("art", "discover:Paint", 14),
+    ("art", "discover:Artwork", 8),
+    ("art", "search:Thirty-six Views of Mount Fuji Hokusai", 10),
     ("art", "search:Fifty-three Stations of the Tokaido Hiroshige", 9),
+    ("art", "search:Landscape paintings by Claude Monet", 6),
 ]
 # 文件名里出现这些词的图片不要（建筑设施、标本、人像等不适合做台历）
 EXCLUDE = re.compile(r"observatory|station|cement|factory|frisur|portrait|museum|specimen|skull|"
                      r"diagram|map\b|chart|logo", re.I)
+
+REPORT = []
+
+
+def report(msg):
+    print(msg)
+    REPORT.append(msg)
+
+
+try:  # 繁体说明转简体（可选依赖）
+    from zhconv import convert as zh_convert
+except ImportError:  # pragma: no cover
+    def zh_convert(s, _lang):
+        return s
 
 SIZES = {"m": 1280, "l": 1920}
 CACHE = os.path.join(ROOT, "build", ".cache")
@@ -128,14 +144,14 @@ def discover_pages(word):
             break
         cont = d["continue"]
     hit = [t for t in pages if word.lower() in t.lower()]
-    print("  discover %r -> %s" % (word, hit[:12]))
+    report("  discover %r -> %s" % (word, hit[:12]))
     return hit
 
 
 def search_category(text):
     d = api({"action": "query", "list": "search", "srsearch": text, "srnamespace": "14", "srlimit": "5"})
     hits = [x["title"] for x in d.get("query", {}).get("search", [])]
-    print("  search %r -> %s" % (text, hits[:5]))
+    report("  search %r -> %s" % (text, hits[:5]))
     return hits[0] if hits else None
 
 
@@ -208,15 +224,16 @@ def clean_title(file_title, meta):
     if not name or len(name) > 70:
         name = re.sub(r"^File:", "", file_title)
         name = re.sub(r"\.(jpe?g|png|tiff?|webp)$", "", name, flags=re.I)
-        name = name.replace("_", " ")
-        name = re.sub(r"\(d\.j\.b\.?\)", "", name)
-        name = re.sub(r"\b\d{1,4}[-.]\d{1,2}[-.]\d{2,4}\b", "", name)           # 日期
+    name = name.replace("_", " ")
+    if True:
+        name = re.sub(r"\(d\.j\.b\.?\)|\(actm\.?\)", "", name)
+        name = re.sub(r"\b\d{1,4}[-.]\d{1,2}[-.]\d{2,4}\b\.?", "", name)           # 日期
         name = re.sub(r"\b(19|20)\d{2}\b", "", name)                               # 年份
-        name = re.sub(r"\b(DSCF?|IMG|P|asv|img|DD)[ _-]?\d+\w*|\b(MC|edit|crop(ped)?)\b", "", name, flags=re.I)
+        name = re.sub(r"\b(DSCF?|IMG|P|asv|img|DD)[ _-]?\d+\w*|\b(MC|edit(ed)?|crop(ped)?|LCCN\d+)\b", "", name, flags=re.I)
         name = re.sub(r"\(\s*\d*\s*\)|\b\d{3,}\b", "", name)                    # 编号
         name = re.sub(r"(\s|-)+\d{1,2}$", "", name.strip())                         # 结尾序号
-        name = re.sub(r"\s*,(\s*,)+", ",", name)
-        name = re.sub(r"\s+,", ",", name)
+        name = re.sub(r"\s*([,.])(\s*[,.])+", r"\1", name)
+        name = re.sub(r"\s+([,.])", r"\1", name)
         name = re.sub(r"\s{2,}", " ", name).strip(" -–,.")
         if name.count("(") > name.count(")"):
             name += ")"
@@ -314,17 +331,17 @@ def pick_commons(count, seed):
                 got += 1
             if got >= quota:
                 break
-        print("  %-10s %3d/%d" % (cat, got, quota))
+        report("  %-10s %3d/%d" % (cat, got, quota))
         shortfall += max(0, quota - got)
 
     for cat, src, quota in SOURCES:
         q = max(1, round(quota * scale))
         try:
             files = source_files(src)
-            print("%s: %d files" % (src, len(files)))
+            report("%s: %d files" % (src, len(files)))
             take(cat, files, q)
         except Exception as e:  # noqa: BLE001
-            print("! %s: %s" % (src, e))
+            report("! %s: %s" % (src, e))
             shortfall += q
     # 不够的用风景补齐
     if shortfall > 0:
@@ -337,6 +354,7 @@ def pick_commons(count, seed):
     for c in chosen:
         cap = caps.get(c.pop("pageid", None) or -1)
         if cap:
+            cap = zh_convert(cap, "zh-cn").rstrip("。.")
             c["title"] = cap if len(cap) <= 60 else cap[:58].rstrip() + "…"
     return chosen
 
@@ -472,7 +490,9 @@ def main():
         f.write("/* 自动生成，请勿手改 */\nvar PHOTOS = ")
         json.dump(entries, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
-    print("完成：%d 张图片 -> %s" % (len(entries), DIST))
+    report("完成：%d 张图片 -> %s" % (len(entries), DIST))
+    with open(os.path.join(ROOT, "build", "report.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(REPORT) + "\n")
 
 
 if __name__ == "__main__":
