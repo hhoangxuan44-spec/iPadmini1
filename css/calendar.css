@@ -1,0 +1,270 @@
+/*
+ * 光影台历
+ * 兼容 iOS 9 Safari：所有 flex / transform / transition / 渐变都带 -webkit- 前缀，
+ * 不使用 CSS 变量、grid、backdrop-filter（玻璃模糊用预模糊图片实现）。
+ * 尺寸全部用 rem，由 JS 根据屏幕计算根字号。
+ */
+
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: #000;
+  color: #fff;
+  font-family: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", "Roboto", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-text-size-adjust: 100%;
+  cursor: default;
+}
+.hidden { display: none !important; }
+
+/* ======================================================== 纸页 */
+#stage {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden;
+  -webkit-perspective-origin: 50% 0; perspective-origin: 50% 0;
+  opacity: 0;
+  -webkit-transition: opacity 1s ease; transition: opacity 1s ease;
+}
+body.ready #stage { opacity: 1; }
+
+.sheet {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  overflow: hidden; background: #111;
+  -webkit-transform-origin: 50% 0; transform-origin: 50% 0;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+.sheet.nophoto {
+  background: -webkit-linear-gradient(-60deg, #1b2a49, #47395e 50%, #c06c5b);
+  background: linear-gradient(150deg, #1b2a49, #47395e 50%, #c06c5b);
+}
+.photo { position: absolute; }
+.photo-blur, .photo-full {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background-size: 100% 100%; background-repeat: no-repeat;
+}
+.photo-full { opacity: 0; -webkit-transition: opacity .9s ease; transition: opacity .9s ease; }
+.photo-full.loaded { opacity: 1; }
+
+.vignette {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none;
+  background: -webkit-linear-gradient(top, rgba(0,0,0,.28) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 55%, rgba(0,0,0,.32) 100%);
+  background: linear-gradient(rgba(0,0,0,.28) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 55%, rgba(0,0,0,.32) 100%);
+}
+.shade {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 9;
+  background: #000; opacity: 0; pointer-events: none;
+}
+
+/* ======================================================== 玻璃 */
+.glass {
+  position: absolute;
+  border-radius: 2rem;
+  color: #fff;
+  box-shadow: 0 1.6rem 3.2rem -1rem rgba(0,0,0,.45), 0 .2rem .6rem rgba(0,0,0,.12);
+}
+.glass-clip {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
+  border-radius: inherit; overflow: hidden;
+  /* 让老版 WebKit 正确裁切带 transform 的子元素 */
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+.glass-bg {
+  position: absolute;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  -webkit-transform: scale(1.06); transform: scale(1.06);
+}
+.spec {
+  position: absolute; top: -40%; left: -40%; width: 180%; height: 180%;
+  background: -webkit-radial-gradient(35% 20%, circle, rgba(255,255,255,.34) 0%, rgba(255,255,255,.08) 22%, rgba(255,255,255,0) 42%);
+  background: radial-gradient(circle at 35% 20%, rgba(255,255,255,.34) 0%, rgba(255,255,255,.08) 22%, rgba(255,255,255,0) 42%);
+}
+.glass-tint {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1;
+  border-radius: inherit;
+  background: -webkit-linear-gradient(-45deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.06) 55%, rgba(255,255,255,.12) 100%);
+  background: linear-gradient(135deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,.06) 55%, rgba(255,255,255,.12) 100%);
+}
+.glass.tone-mid .glass-tint {
+  background: -webkit-linear-gradient(-45deg, rgba(40,40,46,.30) 0%, rgba(20,20,24,.38) 100%);
+  background: linear-gradient(135deg, rgba(40,40,46,.30) 0%, rgba(20,20,24,.38) 100%);
+}
+.glass.tone-light { color: #1d1d1f; }
+.glass.tone-light .glass-tint {
+  background: -webkit-linear-gradient(-45deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.30) 100%);
+  background: linear-gradient(135deg, rgba(255,255,255,.52) 0%, rgba(255,255,255,.30) 100%);
+}
+/* 边缘：内描边 + 顶部受光的亮边，模拟玻璃厚度 */
+.glass:before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 4;
+  border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.22),
+              inset 0 1.5px 0 rgba(255,255,255,.55),
+              inset 1px 0 0 rgba(255,255,255,.18),
+              inset 0 -1px 0 rgba(255,255,255,.10);
+}
+.glass.tone-light:before {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.45),
+              inset 0 1.5px 0 rgba(255,255,255,.9),
+              inset 0 -1px 0 rgba(0,0,0,.06);
+}
+.card-body, .pill-body { position: relative; z-index: 3; }
+.glass .muted { opacity: .7; }
+
+/* ======================================================== 日期卡 */
+.date-card { left: 2rem; bottom: 2rem; width: 23.5rem; }
+.date-card .card-body { padding: 1.5rem 1.8rem 1.4rem; }
+
+.dc-top, .dc-main, .dc-lunar, .mc-head, .pill-body, #hud, .hud-left, .hud-right {
+  display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+}
+.dc-top { -webkit-justify-content: space-between; justify-content: space-between; }
+.dc-month {
+  font-size: .82rem; font-weight: 700; letter-spacing: .32em; opacity: .78;
+}
+.dc-year { font-size: .82rem; font-weight: 600; letter-spacing: .18em; opacity: .62; }
+
+.dc-main { margin: .5rem 0 .6rem; -webkit-align-items: flex-end; align-items: flex-end; }
+.dc-day {
+  font-family: -apple-system, "SF Pro Display", "Helvetica Neue", "HelveticaNeue-UltraLight", "Roboto", sans-serif;
+  font-weight: 200;
+  font-size: 7.8rem; line-height: .86; letter-spacing: -.045em;
+  margin-left: -.35rem;
+  text-shadow: 0 .1rem 1.2rem rgba(0,0,0,.12);
+}
+.dc-side { margin-left: 1.3rem; padding-bottom: .55rem; }
+.dc-week { font-size: 1.55rem; font-weight: 500; letter-spacing: .06em; }
+.dc-weeken { font-size: .92rem; font-weight: 500; opacity: .62; margin-top: .25rem; letter-spacing: .04em; }
+
+.dc-lunar {
+  -webkit-flex-wrap: wrap; flex-wrap: wrap;
+  font-size: .98rem; font-weight: 500; letter-spacing: .03em;
+  padding-top: .85rem;
+  border-top: 1px solid rgba(255,255,255,.18);
+}
+.glass.tone-light .dc-lunar { border-top-color: rgba(0,0,0,.1); }
+.dc-lunar .dot { margin: 0 .45rem; opacity: .5; }
+.chip {
+  display: inline-block; margin-left: .55rem;
+  padding: 0 .65rem; height: 1.5rem; line-height: 1.5rem; border-radius: .75rem;
+  font-size: .78rem; font-weight: 700; letter-spacing: .06em;
+  color: #1d1d1f; background: #ffd60a;
+}
+.dc-foot { margin-top: .5rem; font-size: .76rem; font-weight: 500; opacity: .55; letter-spacing: .08em; }
+
+/* ======================================================== 月历卡 */
+.month-card { right: 2rem; bottom: 2rem; width: 17.6rem; border-radius: 1.8rem; }
+.month-card .card-body { padding: 1.15rem 1.1rem .9rem; }
+.mc-head {
+  -webkit-justify-content: space-between; justify-content: space-between;
+  padding: 0 .35rem .45rem;
+}
+.mc-title { font-size: 1.05rem; font-weight: 700; letter-spacing: .04em; }
+.mc-sub { font-size: .8rem; font-weight: 600; opacity: .55; letter-spacing: .12em; }
+.mc-grid {
+  display: -webkit-flex; display: flex;
+  -webkit-flex-wrap: wrap; flex-wrap: wrap;
+}
+.mc-grid b, .mc-grid i {
+  position: relative; display: block;
+  width: 14.2857%; height: 1.95rem; line-height: 1.95rem;
+  text-align: center; font-style: normal;
+}
+.mc-grid b { font-size: .68rem; font-weight: 600; opacity: .5; height: 1.6rem; line-height: 1.6rem; }
+.mc-grid i { font-size: .84rem; font-weight: 500; z-index: 0; }
+.mc-grid .we { opacity: .62; }
+.mc-grid i:before {
+  content: ''; position: absolute; left: 50%; top: 50%; z-index: -1;
+  width: 1.7rem; height: 1.7rem; margin: -.85rem 0 0 -.85rem; border-radius: 50%;
+}
+.mc-grid i.today { color: #ff9f0a; font-weight: 700; opacity: 1; }
+.mc-grid i.today:before { box-shadow: inset 0 0 0 1.5px #ff9f0a; }
+.mc-grid i.sel { color: #1d1d1f; font-weight: 700; opacity: 1; }
+.mc-grid i.sel:before { background: #fff; box-shadow: 0 .2rem .5rem rgba(0,0,0,.2); }
+.glass.tone-light .mc-grid i.sel { color: #fff; }
+.glass.tone-light .mc-grid i.sel:before { background: #1d1d1f; }
+.mc-grid i.fest:after {
+  content: ''; position: absolute; left: 50%; bottom: .08rem;
+  width: .22rem; height: .22rem; margin-left: -.11rem; border-radius: 50%;
+  background: currentColor; opacity: .55;
+}
+.mc-grid i.sel.fest:after { bottom: -.02rem; }
+
+/* ======================================================== 顶部浮层 */
+#hud {
+  position: fixed; top: 1.4rem; left: 1.6rem; right: 1.6rem; z-index: 20;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  -webkit-align-items: flex-start; align-items: flex-start;
+  pointer-events: none;
+  opacity: 0;
+  -webkit-transition: opacity 1.2s ease .3s; transition: opacity 1.2s ease .3s;
+}
+body.ready #hud { opacity: 1; }
+.hud-left, .hud-right { pointer-events: auto; }
+.pill {
+  position: relative; height: 2.6rem; border-radius: 1.3rem; margin-left: .6rem;
+  box-shadow: 0 .8rem 1.8rem -.6rem rgba(0,0,0,.4);
+}
+.hud-left .pill { margin-left: 0; }
+.pill-body {
+  height: 2.6rem; padding: 0 1.05rem;
+  font-size: .95rem; font-weight: 600; white-space: nowrap;
+}
+.ico {
+  width: 1.15rem; height: 1.15rem; -webkit-flex: none; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.pill-body .ico { margin-right: .45rem; }
+#btn-full .pill-body { padding: 0 .75rem; }
+#btn-full .ico { margin: 0; }
+.btn { cursor: pointer; }
+.btn:active { -webkit-transform: scale(.94); transform: scale(.94); }
+#clock .pill-body { font-size: 1.1rem; letter-spacing: .04em; font-weight: 600; }
+
+#credit .pill-body { max-width: 20rem; }
+#credit-title { overflow: hidden; text-overflow: ellipsis; }
+#credit-more { display: none; margin-left: .6rem; opacity: .62; font-weight: 500; font-size: .8rem; overflow: hidden; text-overflow: ellipsis; }
+#credit.open .pill-body { max-width: 34rem; }
+#credit.open #credit-more { display: block; }
+
+/* ======================================================== 提示 / 夜间 / 空状态 */
+#hint {
+  position: fixed; left: 0; right: 0; bottom: 2.6rem; z-index: 15;
+  text-align: center; font-size: .9rem; font-weight: 600; letter-spacing: .1em;
+  color: rgba(255,255,255,.9); text-shadow: 0 .1rem .6rem rgba(0,0,0,.5);
+  opacity: 0; pointer-events: none;
+  -webkit-transition: opacity .8s ease; transition: opacity .8s ease;
+}
+#hint .ico { display: block; margin: 0 auto .2rem; width: 1.6rem; height: 1.6rem;
+  -webkit-animation: nudge 1.6s ease-in-out infinite; animation: nudge 1.6s ease-in-out infinite; }
+body.ready #hint.show { opacity: 1; }
+#hint.gone { opacity: 0 !important; }
+@-webkit-keyframes nudge { 0%, 100% { -webkit-transform: translate3d(0,.3rem,0); } 50% { -webkit-transform: translate3d(0,-.3rem,0); } }
+@keyframes nudge { 0%, 100% { transform: translate3d(0,.3rem,0); } 50% { transform: translate3d(0,-.3rem,0); } }
+
+#night {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100;
+  background: #000; opacity: 0; pointer-events: none;
+  -webkit-transition: opacity 4s ease; transition: opacity 4s ease;
+}
+#nophotos { display: none; }
+body.empty #nophotos {
+  display: block; position: fixed; top: 38%; left: 0; right: 0; z-index: 30; text-align: center;
+  font-size: 1.4rem; font-weight: 600; text-shadow: 0 .1rem .8rem rgba(0,0,0,.5);
+}
+#nophotos .small { font-size: .9rem; font-weight: 500; opacity: .8; }
+
+/* ======================================================== 窄屏（手机竖屏） */
+body.narrow .date-card { left: 1rem; right: 1rem; bottom: 1.2rem; width: auto; }
+body.narrow .month-card { display: none; }
+body.narrow #hud { top: 1rem; left: 1rem; right: 1rem; }
+body.narrow #credit .pill-body { max-width: 13rem; }
+body.narrow #credit.open .pill-body { max-width: 13rem; }
+body.narrow #credit.open #credit-more { display: none; }
+body.narrow #hint { bottom: 19rem; }
+
+/* iPad 竖屏：提示放到卡片上方 */
+body.portrait #hint { bottom: 17.5rem; }
+/* 很矮的横屏（手机横放）：只留日期卡 */
+body.short .month-card { display: none; }
