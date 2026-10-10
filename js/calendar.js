@@ -520,7 +520,19 @@
     if (Date.now() - d.t < 500) onTap(e.target);
   }, false);
 
+  // iOS 13+ 需要用户点一下才允许读取陀螺仪（iOS 9 / 安卓不需要）
+  var askedMotion = false;
+  function askMotion() {
+    if (askedMotion) return;
+    askedMotion = true;
+    var D = window.DeviceOrientationEvent;
+    if (cfg.tiltEffects !== false && D && typeof D.requestPermission === 'function') {
+      try { D.requestPermission(); } catch (e) { /* 忽略 */ }
+    }
+  }
+
   function onTap(target) {
+    askMotion();
     var n = target;
     while (n && n !== document.body) {
       if (n.getAttribute && n.getAttribute('data-d') && hasClass(n, 'c')) {

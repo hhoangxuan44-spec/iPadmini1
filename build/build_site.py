@@ -40,23 +40,24 @@ SITE_FILES = ["index.html", "manifest.webmanifest", "css", "js", "img"]
 API = "https://commons.wikimedia.org/w/api.php"
 UA = "DeskCalendarBuilder/1.0 (personal desk calendar; https://github.com/hhoangxuan44-spec/iPadmini1)"
 
-# 图片来源（Commons 精选图片画廊页 / 分类）与配额。
-# 某个来源不可用时会自动跳过，用其它来源补齐。
+# 图片来源与配额：(类别, 来源, 配额)
+#   "Commons:..."   精选图片画廊页
+#   "discover:xxx"  自动查找名字里含 xxx 的精选图片画廊子页（名画等页面名不固定）
+#   "search:xxx"    搜索名为 xxx 的分类，取其中（含一层子分类）的文件
 SOURCES = [
-    # (类别, 页面, 配额)
-    ("landscape", "Commons:Featured pictures/Places/Natural", 70),
-    ("phenomena", "Commons:Featured pictures/Natural phenomena", 14),
-    ("space", "Commons:Featured pictures/Astronomy", 10),
-    ("animals", "Commons:Featured pictures/Animals/Mammals", 10),
-    ("animals", "Commons:Featured pictures/Animals/Birds", 8),
-    ("plants", "Commons:Featured pictures/Plants", 8),
-    ("art", "Commons:Featured pictures/Artwork/Paintings", 26),
-    ("art", "Commons:Featured pictures/Artwork/Prints", 10),
+    ("landscape", "Commons:Featured pictures/Places/Natural", 64),
+    ("phenomena", "Commons:Featured pictures/Natural phenomena", 12),
+    ("space", "Commons:Featured pictures/Astronomy", 9),
+    ("animals", "Commons:Featured pictures/Animals/Mammals", 9),
+    ("animals", "Commons:Featured pictures/Animals/Birds", 7),
+    ("plants", "Commons:Featured pictures/Plants", 5),
+    ("art", "discover:Paintings", 22),
+    ("art", "search:Thirty-six Views of Mount Fuji", 12),
+    ("art", "search:Fifty-three Stations of the Tokaido Hiroshige", 9),
 ]
-CATEGORY_FALLBACKS = [
-    ("art", "Category:The Thirty-six Views of Mount Fuji", 12),
-    ("art", "Category:One Hundred Famous Views of Edo", 10),
-]
+# 文件名里出现这些词的图片不要（建筑设施、标本、人像等不适合做台历）
+EXCLUDE = re.compile(r"observatory|station|cement|factory|frisur|portrait|museum|specimen|skull|"
+                     r"diagram|map\b|chart|logo", re.I)
 
 SIZES = {"m": 1280, "l": 1920}
 CACHE = os.path.join(ROOT, "build", ".cache")
@@ -114,6 +115,75 @@ def list_category_files(title):
     return files
 
 
+def discover_pages(word):
+    """列出 Commons:Featured pictures/ 下名字含 word 的画廊子页。"""
+    pages, cont = [], {}
+    while True:
+        p = {"action": "query", "list": "allpages", "apnamespace": "4",
+             "apprefix": "Featured pictures/", "aplimit": "500"}
+        p.update(cont)
+        d = api(p)
+        pages += [x["title"] for x in d.get("query", {}).get("allpages", [])]
+        if "continue" not in d:
+            break
+        cont = d["continue"]
+    hit = [t for t in pages if word.lower() in t.lower()]
+    print("  discover %r -> %s" % (word, hit[:12]))
+    return hit
+
+
+def search_category(text):
+    d = api({"action": "query", "list": "search", "srsearch": text, "srnamespace": "14", "srlimit": "5"})
+    hits = [x["title"] for x in d.get("query", {}).get("search", [])]
+    print("  search %r -> %s" % (text, hits[:5]))
+    return hits[0] if hits else None
+
+
+def category_files_deep(title, depth=1):
+    files = list_category_files(title)
+    if depth > 0:
+        d = api({"action": "query", "list": "categorymembers", "cmtitle": title,
+                 "cmtype": "subcat", "cmlimit": "100"})
+        for sub in d.get("query", {}).get("categorymembers", [])[:40]:
+            files += category_files_deep(sub["title"], depth - 1)
+    return files
+
+
+def source_files(src):
+    if src.startswith("discover:"):
+        files = []
+        for page in discover_pages(src.split(":", 1)[1]):
+            files += list_page_images(page)
+        return files
+    if src.startswith("search:"):
+        cat = search_category(src.split(":", 1)[1])
+        return category_files_deep(cat) if cat else []
+    if src.startswith("Category:"):
+        return category_files_deep(src)
+    return list_page_images(src)
+
+
+def captions(pageids):
+    """Commons 结构化说明（人工撰写的简短描述），优先中文。"""
+    out = {}
+    langs = ["zh-hans", "zh-cn", "zh", "zh-hant", "en"]
+    ids = ["M%d" % i for i in pageids if i]
+    for i in range(0, len(ids), 50):
+        try:
+            d = api({"action": "wbgetentities", "ids": "|".join(ids[i:i + 50]),
+                     "props": "labels", "languages": "|".join(langs)})
+        except Exception as e:  # noqa: BLE001
+            print("  ! captions: %s" % e)
+            continue
+        for mid, ent in (d.get("entities") or {}).items():
+            labels = ent.get("labels") or {}
+            for lg in langs:
+                if lg in labels and labels[lg].get("value"):
+                    out[int(mid[1:])] = labels[lg]["value"].strip()
+                    break
+    return out
+
+
 def strip_html(s):
     s = re.sub(r"<[^>]+>", "", s or "")
     s = html.unescape(s)
@@ -128,6 +198,7 @@ def image_infos(titles):
         for page in d.get("query", {}).get("pages", []):
             ii = (page.get("imageinfo") or [None])[0]
             if ii:
+                ii["pageid"] = page.get("pageid")
                 out[page["title"]] = ii
     return out
 
@@ -137,10 +208,18 @@ def clean_title(file_title, meta):
     if not name or len(name) > 70:
         name = re.sub(r"^File:", "", file_title)
         name = re.sub(r"\.(jpe?g|png|tiff?|webp)$", "", name, flags=re.I)
-        name = re.sub(r"[_]+", " ", name)
-        name = re.sub(r"\s*\(\d+\)\s*$", "", name)
-        name = re.sub(r"\b(DSC|IMG|P)\s?\d{3,}\b", "", name)
-        name = re.sub(r"\s{2,}", " ", name).strip(" -–,")
+        name = name.replace("_", " ")
+        name = re.sub(r"\(d\.j\.b\.?\)", "", name)
+        name = re.sub(r"\b\d{1,4}[-.]\d{1,2}[-.]\d{2,4}\b", "", name)           # 日期
+        name = re.sub(r"\b(19|20)\d{2}\b", "", name)                               # 年份
+        name = re.sub(r"\b(DSCF?|IMG|P|asv|img|DD)[ _-]?\d+\w*|\b(MC|edit|crop(ped)?)\b", "", name, flags=re.I)
+        name = re.sub(r"\(\s*\d*\s*\)|\b\d{3,}\b", "", name)                    # 编号
+        name = re.sub(r"(\s|-)+\d{1,2}$", "", name.strip())                         # 结尾序号
+        name = re.sub(r"\s*,(\s*,)+", ",", name)
+        name = re.sub(r"\s+,", ",", name)
+        name = re.sub(r"\s{2,}", " ", name).strip(" -–,.")
+        if name.count("(") > name.count(")"):
+            name += ")"
     return name[:70]
 
 
@@ -209,7 +288,7 @@ def pick_commons(count, seed):
             infos = image_infos(batch)
             for f in batch:
                 ii = infos.get(f)
-                if not ii or got >= quota:
+                if not ii or got >= quota or EXCLUDE.search(f):
                     continue
                 w, h = ii.get("width", 0), ii.get("height", 0)
                 if min(w, h) < 1400:
@@ -229,6 +308,7 @@ def pick_commons(count, seed):
                     "artist": artist[:60],
                     "license": lic,
                     "page": ii.get("descriptionurl", ""),
+                    "pageid": ii.get("pageid"),
                     "thumb": ii.get("url", ""),
                 })
                 got += 1
@@ -237,26 +317,27 @@ def pick_commons(count, seed):
         print("  %-10s %3d/%d" % (cat, got, quota))
         shortfall += max(0, quota - got)
 
-    for cat, page, quota in SOURCES:
+    for cat, src, quota in SOURCES:
         q = max(1, round(quota * scale))
         try:
-            files = list_page_images(page)
-            print("%s: %d files" % (page, len(files)))
+            files = source_files(src)
+            print("%s: %d files" % (src, len(files)))
             take(cat, files, q)
         except Exception as e:  # noqa: BLE001
-            print("! %s: %s" % (page, e))
+            print("! %s: %s" % (src, e))
             shortfall += q
-    for cat, page, quota in CATEGORY_FALLBACKS:
-        if shortfall <= 0:
-            break
+    # 不够的用风景补齐
+    if shortfall > 0:
         try:
-            files = list_category_files(page)
-            print("%s: %d files" % (page, len(files)))
-            before = len(chosen)
-            take(cat, files, min(quota, shortfall))
-            shortfall -= len(chosen) - before
+            take("landscape", list_page_images(SOURCES[0][1]), shortfall)
         except Exception as e:  # noqa: BLE001
-            print("! %s: %s" % (page, e))
+            print("! refill: %s" % e)
+
+    caps = captions([c["pageid"] for c in chosen])
+    for c in chosen:
+        cap = caps.get(c.pop("pageid", None) or -1)
+        if cap:
+            c["title"] = cap if len(cap) <= 60 else cap[:58].rstrip() + "…"
     return chosen
 
 
