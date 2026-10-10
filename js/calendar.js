@@ -372,10 +372,13 @@
     sheet._shade.style.opacity = ((1 - p) * 0.5).toFixed(3);
   }
 
+  // 每页明确的层级（独立层叠上下文），避免下层页面的玻璃合成层透到上层
   function mount(sheet, onTop) {
     sheet._shade = sheet.querySelector('.shade');
     if (onTop || !cur) stage.appendChild(sheet);
     else stage.insertBefore(sheet, cur);
+    sheet.style.zIndex = onTop || !cur ? 2 : 1;
+    if (cur && cur !== sheet) cur.style.zIndex = onTop ? 1 : 2;
     layoutSheet(sheet);
   }
 
