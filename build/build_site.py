@@ -42,7 +42,6 @@ UA = "DeskCalendarBuilder/1.0 (personal desk calendar; https://github.com/hhoang
 
 # 图片来源与配额：(类别, 来源, 配额)
 #   "Commons:..."   精选图片画廊页
-#   "discover:xxx"  自动查找名字里含 xxx 的精选图片画廊子页（名画等页面名不固定）
 #   "search:xxx"    搜索名为 xxx 的分类，取其中（含一层子分类）的文件
 SOURCES = [
     ("landscape", "Commons:Featured pictures/Places/Natural", 64),
@@ -51,11 +50,13 @@ SOURCES = [
     ("animals", "Commons:Featured pictures/Animals/Mammals", 9),
     ("animals", "Commons:Featured pictures/Animals/Birds", 7),
     ("plants", "Commons:Featured pictures/Plants", 5),
-    ("art", "discover:Paint", 14),
-    ("art", "discover:Artwork", 8),
     ("art", "search:Thirty-six Views of Mount Fuji Hokusai", 10),
-    ("art", "search:Fifty-three Stations of the Tokaido Hiroshige", 9),
-    ("art", "search:Landscape paintings by Claude Monet", 6),
+    ("art", "search:Fifty-three Stations of the Tokaido Hiroshige", 8),
+    ("art", "search:Paintings by Claude Monet", 6),
+    ("art", "search:Landscape paintings by Vincent van Gogh", 5),
+    ("art", "search:Seascapes by Ivan Aivazovsky", 5),
+    ("art", "search:Shan shui paintings", 4),
+    ("art", "search:Paintings by Caspar David Friedrich", 4),
 ]
 # 文件名里出现这些词的图片不要（建筑设施、标本、人像等不适合做台历）
 EXCLUDE = re.compile(r"observatory|station|cement|factory|frisur|portrait|museum|specimen|skull|"
@@ -131,23 +132,6 @@ def list_category_files(title):
     return files
 
 
-def discover_pages(word):
-    """列出 Commons:Featured pictures/ 下名字含 word 的画廊子页。"""
-    pages, cont = [], {}
-    while True:
-        p = {"action": "query", "list": "allpages", "apnamespace": "4",
-             "apprefix": "Featured pictures/", "aplimit": "500"}
-        p.update(cont)
-        d = api(p)
-        pages += [x["title"] for x in d.get("query", {}).get("allpages", [])]
-        if "continue" not in d:
-            break
-        cont = d["continue"]
-    hit = [t for t in pages if word.lower() in t.lower()]
-    report("  discover %r -> %s" % (word, hit[:12]))
-    return hit
-
-
 def search_category(text):
     d = api({"action": "query", "list": "search", "srsearch": text, "srnamespace": "14", "srlimit": "5"})
     hits = [x["title"] for x in d.get("query", {}).get("search", [])]
@@ -166,11 +150,6 @@ def category_files_deep(title, depth=1):
 
 
 def source_files(src):
-    if src.startswith("discover:"):
-        files = []
-        for page in discover_pages(src.split(":", 1)[1]):
-            files += list_page_images(page)
-        return files
     if src.startswith("search:"):
         cat = search_category(src.split(":", 1)[1])
         return category_files_deep(cat) if cat else []
