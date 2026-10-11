@@ -305,6 +305,8 @@ def pick_commons(count, seed):
                     "license": lic,
                     "page": ii.get("descriptionurl", ""),
                     "pageid": ii.get("pageid"),
+                    "desc": strip_html((meta.get("ImageDescription") or {}).get("value", ""))[:240],
+                    "w": w, "h": h,
                     "thumb": ii.get("url", ""),
                 })
                 got += 1

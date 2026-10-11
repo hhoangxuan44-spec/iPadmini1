@@ -1,0 +1,17 @@
+name: 列出候选图片
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install Pillow zhconv
+      - run: python build/list_candidates.py 320 > /dev/null
+      - name: 候选列表
+        run: cat build/candidates.txt
