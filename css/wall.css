@@ -154,8 +154,8 @@ html, body {
 /* 说明后面一团柔和的暗影，保证任何照片上都看得清 */
 .st-minimal .story-float:before, .st-minimal.ink-light .panel:before, .st-minimal.ink-dark .panel:before {
   content: ''; position: absolute; top: -5rem; left: -6rem; right: -6rem; bottom: -5rem; z-index: -1;
-  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(0,0,0,.32), rgba(0,0,0,0));
-  background: radial-gradient(closest-side, rgba(0,0,0,.32), rgba(0,0,0,0));
+  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(0,0,0,.24), rgba(0,0,0,0));
+  background: radial-gradient(closest-side, rgba(0,0,0,.24), rgba(0,0,0,0));
 }
 .st-minimal.ink-dark .panel:before {
   background: -webkit-radial-gradient(center, ellipse closest-side, rgba(255,255,255,.4), rgba(255,255,255,0));
@@ -217,12 +217,12 @@ html, body {
 .st-magazine.ink-dark .b-story { border-top-color: rgba(0,0,0,.18); }
 .st-magazine .s-desc { font-size: .8rem; }
 .st-magazine.pos-l .shade {
-  background: -webkit-linear-gradient(left, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
-  background: linear-gradient(to right, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+  background: -webkit-linear-gradient(left, rgba(0,0,0,.48), rgba(0,0,0,.24) 28%, rgba(0,0,0,0) 46%);
+  background: linear-gradient(to right, rgba(0,0,0,.48), rgba(0,0,0,.24) 28%, rgba(0,0,0,0) 46%);
 }
 .st-magazine.pos-r .shade {
-  background: -webkit-linear-gradient(right, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
-  background: linear-gradient(to left, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+  background: -webkit-linear-gradient(right, rgba(0,0,0,.48), rgba(0,0,0,.24) 28%, rgba(0,0,0,0) 46%);
+  background: linear-gradient(to left, rgba(0,0,0,.48), rgba(0,0,0,.24) 28%, rgba(0,0,0,0) 46%);
 }
 .st-magazine.ink-dark.pos-l .shade {
   background: -webkit-linear-gradient(left, rgba(255,255,255,.7), rgba(255,255,255,.4) 28%, rgba(255,255,255,0) 48%);
@@ -252,8 +252,8 @@ html, body {
 .st-band .b-story { -webkit-flex: 1; flex: 1; min-width: 0; }
 .st-band .s-desc { font-size: .8rem; }
 .st-band .shade {
-  background: -webkit-linear-gradient(bottom, rgba(0,0,0,.25), rgba(0,0,0,0) 45%);
-  background: linear-gradient(to top, rgba(0,0,0,.25), rgba(0,0,0,0) 45%);
+  background: -webkit-linear-gradient(bottom, rgba(0,0,0,.15), rgba(0,0,0,0) 40%);
+  background: linear-gradient(to top, rgba(0,0,0,.15), rgba(0,0,0,0) 40%);
 }
 
 /* ======================================================== 5 宣纸 / 画廊标签 */
@@ -296,8 +296,8 @@ html, body {
   opacity: .92;
 }
 .st-paper .shade {
-  background: -webkit-radial-gradient(center, ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
-  background: radial-gradient(ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
+  background: -webkit-radial-gradient(center, ellipse farthest-corner, rgba(0,0,0,0) 60%, rgba(0,0,0,.14));
+  background: radial-gradient(ellipse farthest-corner, rgba(0,0,0,0) 60%, rgba(0,0,0,.14));
 }
 .st-paper .story-float { display: none; }
 
@@ -314,7 +314,8 @@ html, body {
 
 /* ======================================================== 6 画廊装裱 */
 .st-gallery .photo { -webkit-transform: scale(1.08); transform: scale(1.08); }  /* 模糊墙面，略放大避免边缘露底 */
-.st-gallery .shade { opacity: .74; }
+.st-gallery .shade { opacity: .38; }
+.st-gallery .panel { text-shadow: 0 .06rem .8rem rgba(0,0,0,.45); }
 .st-gallery .shade:after {   /* 顶部射灯 */
   content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
   background: -webkit-radial-gradient(38% 0%, ellipse farthest-corner, rgba(255,240,220,.16), rgba(255,240,220,0) 55%);
@@ -402,8 +403,8 @@ html, body {
 .st-vpoem .grid em { height: 1.1rem; line-height: 1.1rem; font-size: .58rem; }
 .st-vpoem .grid .today b { color: #fff; }
 .st-vpoem .shade {
-  background: -webkit-radial-gradient(center, ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
-  background: radial-gradient(ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
+  background: -webkit-radial-gradient(center, ellipse farthest-corner, rgba(0,0,0,0) 60%, rgba(0,0,0,.14));
+  background: radial-gradient(ellipse farthest-corner, rgba(0,0,0,0) 60%, rgba(0,0,0,.14));
 }
 
 /* ======================================================== 8 海报大字 */
@@ -424,8 +425,8 @@ html, body {
 .st-poster.ink-dark .panel { text-shadow: 0 0 1.2rem rgba(255,255,255,.55); }
 .st-poster .panel:before {
   content: ''; position: absolute; top: -6rem; left: -7rem; right: -7rem; bottom: -6rem; z-index: -1;
-  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(0,0,0,.3), rgba(0,0,0,0));
-  background: radial-gradient(closest-side, rgba(0,0,0,.3), rgba(0,0,0,0));
+  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(0,0,0,.22), rgba(0,0,0,0));
+  background: radial-gradient(closest-side, rgba(0,0,0,.22), rgba(0,0,0,0));
 }
 .st-poster.ink-dark .panel:before {
   background: -webkit-radial-gradient(center, ellipse closest-side, rgba(255,255,255,.38), rgba(255,255,255,0));

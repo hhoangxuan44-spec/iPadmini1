@@ -164,7 +164,7 @@ def assign(items):
 
 def _wall_color(dominant):
     h, l, s = colorsys.rgb_to_hls(*[c / 255.0 for c in dominant])
-    return _hls_to_hex(h, 0.13, min(s, 0.25))
+    return _hls_to_hex(h, 0.3, min(s, 0.3))
 
 
 def _theme_for(it):
