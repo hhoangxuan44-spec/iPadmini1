@@ -12,6 +12,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install Pillow zhconv
-      - run: python build/list_candidates.py 320 > /dev/null
+      - run: python build/list_candidates.py
       - name: 候选列表
         run: cat build/candidates.txt
