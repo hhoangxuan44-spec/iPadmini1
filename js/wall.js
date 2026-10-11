@@ -154,7 +154,8 @@
     ph.style.backgroundColor = t.bg || '#111';
     s._photoEl = ph;
     if (!LITE && cfg.kenBurns !== false) {
-      ph.className += ' kb kb' + (1 + Math.floor(Math.random() * 4));
+      // 推拉动画在这页真正露出来时才开始（见 startKenBurns）
+      s._kb = ' kb kb' + (1 + Math.floor(Math.random() * 4));
       var dur = (cfg.intervalMinutes || 5) * 60 + 20;
       ph.style.webkitAnimationDuration = ph.style.animationDuration = dur + 's';
     }
@@ -222,7 +223,13 @@
   }
 
   // ------------------------------------------------------------ 轮播
-  var queue = [], cur = null, timer = null, busy = false;
+  //
+  // 为了换页顺滑（老设备尤其明显）：
+  //   1. 下一页提前准备好：图片解码、排版、玻璃都在换页前完成，并且已经铺在当前页的下面
+  //   2. 分段切换：旧日历先淡出 → 只把上层照片淡出、露出早已就位的下一页 → 新日历再轻轻浮现
+  //      任何时刻屏幕上都只有一套日历，不会出现两套文字叠在一起的残影
+  var queue = [], cur = null, nxt = null, timer = null, busy = false, wantReveal = false, preparing = false;
+  var UI_OUT = 450, PHOTO_FADE = 1600, UI_IN_AT = 1000;
 
   function shuffle(a) {
     for (var i = a.length - 1; i > 0; i--) {
@@ -242,58 +249,94 @@
 
   function srcOf(p) { return hiDPI && p.l ? p.l : p.m; }
 
-  function show(p) {
-    busy = true;
+  function startKenBurns(s) {
+    if (s._kb) { s._photoEl.className += s._kb; s._kb = null; }
+  }
+
+  function release(s) {
+    if (!s || !s.parentNode) return;
+    s._photoEl.style.backgroundImage = 'none';
+    var gb = s.querySelectorAll('.glass-bg');
+    for (var i = 0; i < gb.length; i++) gb[i].style.backgroundImage = 'none';
+    s.parentNode.removeChild(s);
+  }
+
+  // 加载图片并搭好一页（不显示）
+  function loadSlide(p, cb) {
     var img = new Image();
     var done = false;
-    function go() {
+    function ok() {
       if (done) return;
       done = true;
       var s = buildSlide(p);
       s._photoEl.style.backgroundImage = 'url("' + img.src + '")';
-      stage.appendChild(s);
-      layoutGlass(s);
-      void s.offsetWidth;
-      toggleClass(s, 'in', true);
-      var old = cur;
-      cur = s;
-      setTimeout(function () {
-        if (old && old.parentNode) {
-          old._photoEl.style.backgroundImage = 'none';
-          var gb = old.querySelectorAll('.glass-bg');
-          for (var i = 0; i < gb.length; i++) gb[i].style.backgroundImage = 'none';
-          old.parentNode.removeChild(old);
-        }
-        busy = false;
-      }, 2400);
-      schedule();
-      preload();
+      cb(s);
     }
-    img.onload = go;
-    img.onerror = function () { busy = false; done = true; setTimeout(advance, 500); };
+    img.onload = ok;
+    img.onerror = function () { if (!done) { done = true; cb(null); } };
     img.src = srcOf(p);
-    setTimeout(function () { if (!done && img.complete) go(); }, 8000);
   }
 
-  var upcoming = null, upImg = null;
-  function preload() {
-    upcoming = nextPhoto();
-    upImg = new Image();
-    upImg.src = srcOf(upcoming);
-    var b = new Image();
-    b.src = upcoming.b;
+  // 提前准备下一页，铺在当前页下面（被当前页完全挡住）
+  function prepare() {
+    if (nxt || preparing || photos.length < 2) return;
+    preparing = true;
+    loadSlide(nextPhoto(), function (s) {
+      preparing = false;
+      if (!s) { setTimeout(prepare, 1000); return; }
+      toggleClass(s, 'ui-off', true);
+      stage.insertBefore(s, cur || null);
+      layoutGlass(s);
+      nxt = s;
+      if (wantReveal) { wantReveal = false; reveal(); }
+    });
+  }
+
+  function reveal() {
+    if (busy) return;
+    if (!nxt) { wantReveal = true; prepare(); return; }
+    busy = true;
+    var old = cur, s = nxt;
+    nxt = null;
+    cur = s;
+    refreshSlide(s);           // 准备之后可能过了几分钟，先刷新时钟和月历
+    startKenBurns(s);
+
+    toggleClass(old, 'boot', false);
+    toggleClass(old, 'ui-off', true);                                    // ① 旧日历淡出
+    setTimeout(function () { toggleClass(old, 'out', true); }, UI_OUT);  // ② 旧照片淡出
+    setTimeout(function () { toggleClass(s, 'ui-off', false); }, UI_OUT + UI_IN_AT); // ③ 新日历浮现
+    setTimeout(function () {
+      release(old);
+      busy = false;
+      schedule();
+      setTimeout(prepare, 8000);                                         // 空闲时再准备下一页
+    }, UI_OUT + PHOTO_FADE + 100);
   }
 
   function advance() {
     if (busy || !photos.length) return;
-    var p = upcoming || nextPhoto();
-    upcoming = null;
-    show(p);
+    reveal();
   }
 
   function schedule() {
     clearTimeout(timer);
     timer = setTimeout(advance, (cfg.intervalMinutes || 5) * 60000);
+  }
+
+  function boot(p) {
+    loadSlide(p, function (s) {
+      if (!s) { boot(nextPhoto()); return; }
+      toggleClass(s, 'boot', true);
+      // 开场淡入结束后移除动画，否则 animation 的 fill 会锁住 opacity，之后无法淡出
+      setTimeout(function () { toggleClass(s, 'boot', false); }, 2000);
+      stage.appendChild(s);
+      layoutGlass(s);
+      startKenBurns(s);
+      cur = s;
+      schedule();
+      setTimeout(prepare, 3000);
+    });
   }
 
   // ------------------------------------------------------------ 月份切换
@@ -307,15 +350,22 @@
     toastTimer = setTimeout(function () { toggleClass(toastEl, 'on', false); }, 1600);
   }
 
-  function renderMonths() {
-    if (!cur) return;
-    var vm = viewMonth(), now = new Date();
-    var ms = cur.querySelectorAll('.b-month');
-    for (var i = 0; i < ms.length; i++) ms[i].innerHTML = monthHTML(vm.getFullYear(), vm.getMonth(), now);
-    var seal = cur.querySelector('.seal');
+  function refreshSlide(s) {
+    if (!s) return;
+    var vm = viewMonth(), now = new Date(), i;
+    var cs = s.querySelectorAll('.b-clock');
+    for (i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now);
+    var ms = s.querySelectorAll('.b-month');
+    for (i = 0; i < ms.length; i++) ms[i].innerHTML = monthHTML(vm.getFullYear(), vm.getMonth(), now);
+    var seal = s.querySelector('.seal');
     if (seal) seal.innerHTML = NUM_CN[vm.getMonth()].split('').join('<br>') + '<br>月';
-    paint(cur);
-    layoutGlass(cur);
+    paint(s);
+    layoutGlass(s);
+  }
+
+  function renderMonths() {
+    refreshSlide(cur);
+    refreshSlide(nxt);
   }
 
   function shiftMonth(delta) {
@@ -383,10 +433,10 @@
   var resizeTimer = null;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { measure(); if (cur) layoutGlass(cur); }, 80);
+    resizeTimer = setTimeout(function () { measure(); if (cur) layoutGlass(cur); if (nxt) layoutGlass(nxt); }, 80);
   }, false);
   window.addEventListener('orientationchange', function () {
-    setTimeout(function () { measure(); if (cur) layoutGlass(cur); }, 400);
+    setTimeout(function () { measure(); if (cur) layoutGlass(cur); if (nxt) layoutGlass(nxt); }, 400);
   }, false);
 
   measure();
@@ -396,7 +446,7 @@
   } else {
     // ?photo=3 打开指定图片（调试用）
     var m = /[?&]photo=(\d+)/.exec(location.search);
-    show(m ? photos[+m[1] % photos.length] : nextPhoto());
+    boot(m ? photos[+m[1] % photos.length] : nextPhoto());
   }
   tick();
 })();
