@@ -83,13 +83,45 @@
     return '农历' + l.monthName + l.dayName + '<span class="sep">·</span>' + l.ganzhi + l.animal + '年' + chips;
   }
 
-  function clockHTML(now) {
+  // 每日一言：按日期在固定洗牌后的列表里取一句（同一天始终是同一句）
+  var MOTTO = window.MOTTOS || [];
+  var mottoOrder = (function () {
+    var idx = [], seed = 7;
+    for (var i = 0; i < MOTTO.length; i++) idx.push(i);
+    for (var j = idx.length - 1; j > 0; j--) {
+      seed = (seed * 9301 + 49297) % 233280;
+      var k = Math.floor(seed / 233280 * (j + 1));
+      var t = idx[j]; idx[j] = idx[k]; idx[k] = t;
+    }
+    return idx;
+  })();
+  function mottoHTML(now) {
+    if (!MOTTO.length) return '';
+    var day = Math.round(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) / 86400000);
+    var m = MOTTO[mottoOrder[((day % MOTTO.length) + MOTTO.length) % MOTTO.length]];
+    return '<div class="motto">' + esc(m[0]) + '<span>' + esc(m[1]) + '</span></div>';
+  }
+
+  function timeHTML(now) {
     var h = now.getHours();
     var hs = cfg.use24h === false ? (h % 12 || 12) : pad(h);
-    return '<div class="time num">' + hs + '<span class="colon">:</span>' + pad(now.getMinutes()) + '</div>' +
-      '<div class="date">' + (now.getMonth() + 1) + '月' + now.getDate() + '日<span class="sep">·</span>' +
-        WEEK_CN[now.getDay()] + '</div>' +
-      '<div class="lunar">' + lunarLine(now) + '</div>';
+    return '<div class="time num">' + hs + '<span class="colon">:</span>' + pad(now.getMinutes()) + '</div>';
+  }
+
+  // 时钟块：不同风格用不同的版式
+  function clockHTML(now, style) {
+    var date = (now.getMonth() + 1) + '月' + now.getDate() + '日<span class="sep">·</span>' + WEEK_CN[now.getDay()];
+    if (style === 'poster') {
+      return '<div class="p-row"><div class="p-day num">' + now.getDate() + '</div>' +
+        '<div class="p-meta"><div class="p-week">' + WEEK_CN[now.getDay()] + '</div>' +
+        '<div class="p-mon num">' + MONTH_EN[now.getMonth()] + ' ' + now.getFullYear() + '</div>' +
+        '<div class="lunar">' + lunarLine(now) + '</div>' + timeHTML(now) + '</div></div>' + mottoHTML(now);
+    }
+    if (style === 'vpoem') {
+      return timeHTML(now) + '<div class="date">' + date + '</div>';
+    }
+    return timeHTML(now) + '<div class="date">' + date + '</div>' +
+      '<div class="lunar">' + lunarLine(now) + '</div>' + mottoHTML(now);
   }
 
   function cellSub(info) {
@@ -125,9 +157,28 @@
     return html + '</div>';
   }
 
-  function storyHTML(p) {
+  // 竖排：每个字一格、每个分句一列、从右往左排。
+  // 不用 writing-mode，任何设备（含 iOS 9 和缺少竖排字体度量的系统）效果都一致。
+  function vcol(text, cls) {
+    var h = '<div class="vc ' + cls + '">';
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (ch === ' ' || ch === '·') { h += '<i class="sp"></i>'; continue; }
+      h += '<i>' + esc(ch) + '</i>';
+    }
+    return h + '</div>';
+  }
+  function verticalHTML(p) {
+    var cols = vcol(p.title.replace(/\s*·\s*/g, '·'), 'vp-title');
+    var parts = p.poem[0].split(/[，。；？！、：]/);
+    for (var i = 0; i < parts.length; i++) if (parts[i]) cols += vcol(parts[i], 'vp-poem');
+    cols += vcol(p.poem[1].replace(/[《》]/g, '·').replace(/·$/, ''), 'vp-src');
+    return cols;
+  }
+
+  function storyHTML(p, noPoem) {
     var credit = p.artist ? '© ' + esc(p.artist) + (p.license ? ' · ' + esc(p.license) : '') : '';
-    var poem = p.poem && p.poem[0] ?
+    var poem = !noPoem && p.poem && p.poem[0] ?
       '<div class="s-poem">' + esc(p.poem[0]) + '<span>' + esc(p.poem[1]) + '</span></div>' : '';
     return '<div class="s-title">' + esc(p.title) + '</div>' +
       (p.sub ? '<div class="s-sub">' + esc(p.sub) + '</div>' : '') + poem +
@@ -155,27 +206,39 @@
     var ph = el('div', 'photo', s);
     ph.style.backgroundColor = t.bg || '#111';
     s._photoEl = ph;
-    if (!LITE && cfg.kenBurns !== false) {
+    s._fullEl = ph;
+    var shade = el('div', 'shade', s);
+
+    if (t.style === 'gallery') {
+      // 画廊：墙面是同一幅画的模糊放大，画作完整挂在墙上（卡纸 + 画框）
+      if (p.b) ph.style.backgroundImage = 'url("' + p.b + '")';
+      shade.style.backgroundColor = t.bg || '#151515';
+      var art = el('div', 'art', s);
+      s._artEl = art;
+      s._fullEl = el('div', 'art-img', art);
+    } else if (!LITE && cfg.kenBurns !== false) {
       // 推拉动画在这页真正露出来时才开始（见 startKenBurns）
       s._kb = ' kb kb' + (1 + Math.floor(Math.random() * 4));
       var dur = (cfg.intervalMinutes || 5) * 60 + 20;
       ph.style.webkitAnimationDuration = ph.style.animationDuration = dur + 's';
     }
-    el('div', 'shade', s);
 
     var panel = el('div', 'panel' + (t.style === 'glass' ? ' glass' : ''), s);
-    if (t.style === 'band' || t.style === 'paper') el('div', 'panel-bg', panel).style.backgroundColor = t.bg;
+    if (t.style === 'band' || t.style === 'paper' || t.style === 'vpoem') {
+      el('div', 'panel-bg', panel).style.backgroundColor = t.bg;
+    }
     var inner = el('div', 'panel-in', panel);
-    if (p.kind === 'east') {
+    if (p.kind === 'east' || t.style === 'vpoem') {
       el('div', 'seal', inner, NUM_CN[vm.getMonth()].split('').join('<br>') + '<br>月');
     }
-    el('div', 'b-clock', inner, clockHTML(now));
+    if (t.style === 'vpoem' && p.poem) el('div', 'vp', inner, verticalHTML(p));
+    el('div', 'b-clock', inner, clockHTML(now, t.style));
     el('div', 'b-month', inner, monthHTML(vm.getFullYear(), vm.getMonth(), now));
     el('div', 'b-story', inner, storyHTML(p));
 
-    // 极简 / 玻璃：图片说明放在对角的下方
+    // 极简 / 玻璃 / 海报 / 诗笺：图片说明放在对角的下方
     var fl = el('div', 'story-float' + (t.style === 'glass' ? ' glass' : ''), s);
-    el('div', 'b-story', el('div', 'panel-in', fl), storyHTML(p));
+    el('div', 'b-story', el('div', 'panel-in', fl), storyHTML(p, t.style === 'vpoem'));
 
     paint(s);
     return s;
@@ -202,6 +265,31 @@
     var sc = Math.max(W / iw, H / ih);
     return { x: (W - iw * sc) / 2, y: (H - ih * sc) / 2, w: iw * sc, h: ih * sc };
   }
+
+  // 画廊：在留给画作的区域里，按原比例放下「画 + 卡纸 + 画框」
+  function layoutArt(s) {
+    var a = s._artEl;
+    if (!a) return;
+    var p = s._p, rem = parseFloat(document.documentElement.style.fontSize) || 16;
+    var x0, y0, aw, ah;
+    if (PORTRAIT) {
+      x0 = 1.6 * rem; y0 = 2 * rem; aw = W - 3.2 * rem; ah = H * 0.5;
+    } else {
+      var side = 24.5 * rem;                  // 右（或左）侧留给说明牌和月历
+      x0 = s._t.pos === 'l' ? side : 2.6 * rem;
+      y0 = 2.6 * rem; aw = W - side - 2.6 * rem; ah = H - 5.2 * rem;
+    }
+    var pad = 2 * (1.5 + 0.45) * rem;         // 卡纸 + 画框
+    var ratio = (p.w || 4) / (p.h || 3);
+    var iw = Math.min(aw - pad, (ah - pad) * ratio);
+    var ih = iw / ratio;
+    a.style.width = iw + 'px';
+    a.style.height = ih + 'px';
+    a.style.left = (x0 + (aw - iw - pad) / 2) + 'px';
+    a.style.top = (y0 + (ah - ih - pad) / 2) + 'px';
+  }
+
+  function layoutSlide(s) { layoutArt(s); layoutGlass(s); }
 
   // 玻璃：在卡片里放一层预模糊的同一张图，与背景对齐
   function layoutGlass(s) {
@@ -305,6 +393,7 @@
   function release(s) {
     if (!s || !s.parentNode) return;
     s._photoEl.style.backgroundImage = 'none';
+    s._fullEl.style.backgroundImage = 'none';
     var gb = s.querySelectorAll('.glass-bg');
     for (var i = 0; i < gb.length; i++) gb[i].style.backgroundImage = 'none';
     s.parentNode.removeChild(s);
@@ -318,7 +407,7 @@
       if (done) return;
       done = true;
       var s = buildSlide(p);
-      s._photoEl.style.backgroundImage = 'url("' + img.src + '")';
+      s._fullEl.style.backgroundImage = 'url("' + img.src + '")';
       cb(s);
     }
     img.onload = ok;
@@ -335,7 +424,7 @@
       if (!s) { setTimeout(prepare, 1000); return; }
       toggleClass(s, 'ui-off', true);
       stage.insertBefore(s, cur || null);
-      layoutGlass(s);
+      layoutSlide(s);
       nxt = s;
       if (wantReveal) { wantReveal = false; reveal(); }
     });
@@ -380,7 +469,7 @@
       // 开场淡入结束后移除动画，否则 animation 的 fill 会锁住 opacity，之后无法淡出
       setTimeout(function () { toggleClass(s, 'boot', false); }, 2000);
       stage.appendChild(s);
-      layoutGlass(s);
+      layoutSlide(s);
       startKenBurns(s);
       cur = s;
       schedule();
@@ -403,13 +492,13 @@
     if (!s) return;
     var vm = viewMonth(), now = new Date(), i;
     var cs = s.querySelectorAll('.b-clock');
-    for (i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now);
+    for (i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now, s._t.style);
     var ms = s.querySelectorAll('.b-month');
     for (i = 0; i < ms.length; i++) ms[i].innerHTML = monthHTML(vm.getFullYear(), vm.getMonth(), now);
     var seal = s.querySelector('.seal');
     if (seal) seal.innerHTML = NUM_CN[vm.getMonth()].split('').join('<br>') + '<br>月';
     paint(s);
-    layoutGlass(s);
+    layoutSlide(s);
   }
 
   function renderMonths() {
@@ -460,7 +549,7 @@
       lastMin = now.getMinutes();
       if (cur) {
         var cs = cur.querySelectorAll('.b-clock');
-        for (var i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now);
+        for (var i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now, cur._t.style);
         if (!sameDay(now, lastDay)) { lastDay = now; renderMonths(); }
         paint(cur);
       }
@@ -482,10 +571,10 @@
   var resizeTimer = null;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { measure(); if (cur) layoutGlass(cur); if (nxt) layoutGlass(nxt); }, 80);
+    resizeTimer = setTimeout(function () { measure(); if (cur) layoutSlide(cur); if (nxt) layoutSlide(nxt); }, 80);
   }, false);
   window.addEventListener('orientationchange', function () {
-    setTimeout(function () { measure(); if (cur) layoutGlass(cur); if (nxt) layoutGlass(nxt); }, 400);
+    setTimeout(function () { measure(); if (cur) layoutSlide(cur); if (nxt) layoutSlide(nxt); }, 400);
   }, false);
 
   measure();

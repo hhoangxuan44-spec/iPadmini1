@@ -109,10 +109,33 @@ def _paper_color(dominant):
 
 def assign(items):
     """
-    items: [{"kind": ..., "feat": analyze()}] 原地写入 theme。
-    风格按排名分配，保证各种风格都有、分布均衡。
+    items: 构建条目（含 kind / feat / w / h / poem / title），原地写入 theme。
+    风格按排名分配，保证各种风格都有、分布均衡：
+      画作：比例不适合铺满屏幕的一律「画廊装裱」完整展示；东方绘画带诗的轮流用「竖排诗笺」
+      照片：极简 / 海报大字 / 杂志 / 色带 / 玻璃；中国风光带诗的轮流用「竖排诗笺」
     """
-    photos = [it for it in items if it["kind"] not in ("east", "west")]
+    def is_art(it):
+        return it["kind"] in ("east", "west")
+
+    art = sorted([it for it in items if is_art(it)], key=lambda t: t["title"])
+    photos = [it for it in items if not is_art(it)]
+
+    for it in art:
+        r = it["w"] / float(it["h"])
+        if r < 1.22 or r > 1.95:
+            it["style"] = "gallery"
+    east_poem = [it for it in art if "style" not in it and it["kind"] == "east" and it.get("poem")]
+    for i, it in enumerate(east_poem):
+        it["style"] = "vpoem" if i % 2 == 0 else "paper"
+    rest = [it for it in art if "style" not in it]
+    for i, it in enumerate(rest):
+        it["style"] = "gallery" if i % 2 == 0 else "paper"
+
+    china_poem = sorted([it for it in photos if it["kind"] == "china" and it.get("poem")], key=lambda t: t["title"])
+    for i, it in enumerate(china_poem):
+        if i % 2 == 0:
+            it["style"] = "vpoem"
+    photos = [it for it in photos if "style" not in it]
 
     def corner_quiet(it):
         rs = it["feat"]["regions"]
@@ -124,29 +147,33 @@ def assign(items):
 
     n = len(photos)
     pool = sorted(photos, key=corner_quiet)
-    for it in pool[: int(n * 0.26)]:
-        it["style"] = "minimal"
+    for i, it in enumerate(pool[: int(n * 0.36)]):
+        it["style"] = "minimal" if i % 5 < 3 else "poster"
     rest = [it for it in photos if "style" not in it]
-    for it in sorted(rest, key=side_quiet)[: int(n * 0.22)]:
+    for it in sorted(rest, key=side_quiet)[: int(n * 0.18)]:
         it["style"] = "magazine"
     rest = [it for it in photos if "style" not in it]
-    for it in sorted(rest, key=lambda t: -t["feat"]["sat"])[: int(n * 0.24)]:
+    for it in sorted(rest, key=lambda t: -t["feat"]["sat"])[: int(n * 0.22)]:
         it["style"] = "band"
     for it in photos:
         it.setdefault("style", "glass")
-    for it in items:
-        if it["kind"] in ("east", "west"):
-            it["style"] = "paper"
 
     for it in items:
         it["theme"] = _theme_for(it)
 
 
+def _wall_color(dominant):
+    h, l, s = colorsys.rgb_to_hls(*[c / 255.0 for c in dominant])
+    return _hls_to_hex(h, 0.13, min(s, 0.25))
+
+
 def _theme_for(it):
     f, style = it["feat"], it["style"]
     rs = f["regions"]
-    if style == "magazine":
+    if style in ("magazine", "vpoem"):
         pos = min(("l", "r"), key=lambda r: rs[r]["edge"] + rs[r]["std"] * 0.1)
+    elif style == "gallery":
+        pos = "r" if sum(ord(ch) for ch in it.get("title", "")) % 2 else "l"
     elif style == "band":
         pos = "b"
     else:
@@ -157,12 +184,14 @@ def _theme_for(it):
     if style == "band":
         bg, ink = _band_color(f["dominant"], f["vivid"])
         t.update(bg=bg, ink=ink, accent=_accent(f["vivid"], ink == "light"))
-    elif style == "paper":
+    elif style in ("paper", "vpoem"):
         t.update(bg=_paper_color(f["dominant"]), ink="dark", accent="#b23a2e")
+    elif style == "gallery":
+        t.update(bg=_wall_color(f["dominant"]), ink="light", accent=_accent(f["vivid"], True))
     elif style == "glass":
         ink = "dark" if region_lum > 165 else "light"
         t.update(ink=ink, accent=_accent(f["vivid"], ink == "light"))
-    else:  # minimal / magazine：文字直接压在照片上
+    else:  # minimal / magazine / poster：文字直接压在照片上
         ink = "dark" if region_lum > 150 else "light"
         t.update(ink=ink, accent=_accent(f["vivid"], ink == "light"),
                  lum=round(region_lum))
