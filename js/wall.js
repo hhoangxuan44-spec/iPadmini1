@@ -127,8 +127,10 @@
 
   function storyHTML(p) {
     var credit = p.artist ? '© ' + esc(p.artist) + (p.license ? ' · ' + esc(p.license) : '') : '';
+    var poem = p.poem && p.poem[0] ?
+      '<div class="s-poem">' + esc(p.poem[0]) + '<span>' + esc(p.poem[1]) + '</span></div>' : '';
     return '<div class="s-title">' + esc(p.title) + '</div>' +
-      (p.sub ? '<div class="s-sub">' + esc(p.sub) + '</div>' : '') +
+      (p.sub ? '<div class="s-sub">' + esc(p.sub) + '</div>' : '') + poem +
       (p.desc ? '<div class="s-desc">' + esc(p.desc) + '</div>' : '') +
       (credit ? '<div class="s-credit">' + credit + '</div>' : '');
   }
@@ -239,12 +241,59 @@
     return a;
   }
 
-  function nextPhoto() {
-    if (!queue.length) {
-      queue = shuffle(photos.slice());
-      if (cur && queue.length > 1 && queue[queue.length - 1] === cur._p) queue.unshift(queue.pop());
+  // ---- 应景选图：季节、早晚、节日会提高相应图片出现的机会（仍然是随机的）
+  function scene(now) {
+    var m = now.getMonth() + 1, h = now.getHours() + now.getMinutes() / 60;
+    var season = m >= 3 && m <= 5 ? 'spring' : m >= 6 && m <= 8 ? 'summer' : m >= 9 && m <= 11 ? 'autumn' : 'winter';
+    var part = (h >= 19 || h < 5) ? 'night' : h < 8.5 ? 'dawn' : h >= 16.5 ? 'dusk' : 'day';
+    var l = Lunar.info(now).lunar, fest = [];
+    if (!l.isLeap) {
+      if (l.month === 8 && l.day >= 13 && l.day <= 17) fest.push('moon');               // 中秋
+      if ((l.month === 12 && l.day >= 23) || (l.month === 1 && l.day <= 15)) fest.push('festive'); // 春节
+      if (l.month === 1 && l.day >= 13 && l.day <= 15) fest.push('moon');               // 元宵
+      if (l.month === 7 && l.day >= 5 && l.day <= 7) fest.push('stars');                // 七夕
+      if (l.month === 9 && l.day >= 7 && l.day <= 9) fest.push('mountain');             // 重阳登高
     }
-    return queue.pop();
+    return { season: season, part: part, fest: fest, key: season + part + fest.join() };
+  }
+
+  function weight(p, c) {
+    var t = p.tags || [], w = 1;
+    function has(x) { return t.indexOf(x) >= 0; }
+    if (has('spring') || has('summer') || has('autumn') || has('winter')) w *= has(c.season) ? 3 : 0.35;
+    var nightly = has('night') || has('stars');
+    if (c.part === 'night') {
+      if (nightly || has('moon')) w *= 3; else if (has('dawn')) w *= 0.5;
+    } else {
+      if (nightly) w *= 0.3;
+      if (c.part === 'dawn' && has('dawn')) w *= 2.5;
+      if (c.part === 'dusk' && has('dusk')) w *= 2.5;
+    }
+    for (var i = 0; i < c.fest.length; i++) if (has(c.fest[i])) w *= 6;
+    return w;
+  }
+
+  var recent = [], sceneKey = '';
+  function nextPhoto() {
+    var c = scene(new Date());
+    if (!queue.length || c.key !== sceneKey) {
+      // 加权随机排序（权重越高越可能排在前面），最近出现过的图先不放进来
+      sceneKey = c.key;
+      var keep = Math.min(30, Math.floor(photos.length / 3));
+      var pool = [];
+      for (var i = 0; i < photos.length; i++) {
+        var p = photos[i];
+        if (recent.indexOf(p) >= 0 && photos.length > keep + 1) continue;
+        pool.push({ p: p, k: Math.pow(Math.random(), 1 / weight(p, c)) });
+      }
+      pool.sort(function (a, b) { return b.k - a.k; });
+      queue = [];
+      for (var j = 0; j < pool.length; j++) queue.push(pool[j].p);
+    }
+    var next = queue.shift();
+    recent.push(next);
+    if (recent.length > Math.min(30, Math.floor(photos.length / 3))) recent.shift();
+    return next;
   }
 
   function srcOf(p) { return hiDPI && p.l ? p.l : p.m; }

@@ -35,7 +35,7 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import theme  # noqa: E402
-from catalog import CATALOG  # noqa: E402
+from catalog import CATALOG, POEMS, TAGS  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
@@ -382,6 +382,8 @@ def build_catalog(outdir):
             continue
         e.update({
             "kind": kind, "title": title, "sub": sub, "desc": desc,
+            "poem": list(POEMS[title]) if title in POEMS else None,
+            "tags": TAGS.get(title, "").split(),
             "artist": (strip_html((meta.get("Artist") or {}).get("value", "")) or "")[:60],
             "license": strip_html((meta.get("LicenseShortName") or {}).get("value", "")),
             "page": ii.get("descriptionurl", ""),
@@ -442,7 +444,9 @@ def build_fake(n, outdir):
         e = save_versions(img, "fake%02d" % i, outdir)
         kind = ["nature", "nature", "sky", "east", "nature", "west", "animal", "nature"][i % 8]
         e.update({"kind": kind, "title": "测试风景 %d" % (i + 1), "sub": "离线测试 · 程序生成",
-                  "desc": "这是一张程序生成的测试图片，用来在本地检查排版。正式构建时会换成精选的风景与名画。",
+                  "desc": '从海拔五千多米的乔拉山口下行，冰川湖静卧在积雪的乱石之间。远处的阿玛达布拉姆峰，被登山者称作“母亲的项链”。',
+                  "poem": ['东临碣石，以观沧海。水何澹澹，山岛竦峙。', '曹操《观沧海》'] if i % 2 == 0 or kind in ("east", "west") else None,
+                  "tags": [["winter"], ["night", "stars"], ["dawn"], ["summer"]][i % 4],
                   "artist": "Generated", "license": "CC0", "page": ""})
         entries.append(e)
     return entries

@@ -117,6 +117,15 @@ html, body {
 /* 图片说明 */
 .s-title { font-size: 1.3rem; font-weight: 600; letter-spacing: .04em; line-height: 1.35; }
 .s-sub { margin-top: .3rem; font-size: .74rem; font-weight: 600; letter-spacing: .08em; }
+.s-poem {
+  margin-top: .6rem; font-size: .98rem; line-height: 1.55; letter-spacing: .08em;
+  font-family: "Songti SC", "STSongti-SC-Regular", "STSong", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+}
+.s-poem span {
+  display: block; margin-top: .1rem; font-size: .62rem; letter-spacing: .12em; opacity: .62;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+}
+.st-band .s-poem, .st-glass .story-float .s-poem { font-size: .9rem; }
 .s-desc { margin-top: .6rem; font-size: .86rem; line-height: 1.7; opacity: .92; letter-spacing: .02em; }
 .s-credit { margin-top: .55rem; font-size: .58rem; opacity: .5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
@@ -188,18 +197,21 @@ html, body {
 .st-magazine.pos-l .panel { left: 0; }
 .st-magazine.pos-r .panel { right: 0; }
 .st-magazine .panel-in {
-  height: 100%; box-sizing: border-box; padding: 3rem 2.8rem 2.6rem;
+  height: 100%; box-sizing: border-box; padding: 2.2rem 2.8rem 2rem;
   display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
 }
 .st-magazine .b-month { margin-top: 0; -webkit-order: -1; order: -1; }
-.st-magazine .m-head { display: block; margin-bottom: 1.2rem; }
-.st-magazine .m-num { display: block; font-size: 8.4rem; font-weight: 200; line-height: .86; letter-spacing: -.04em; margin: 0 0 .6rem -.4rem; }
+.st-magazine .m-head { display: block; margin-bottom: .7rem; }
+.st-magazine .m-num { display: block; font-size: 6.4rem; font-weight: 200; line-height: .86; letter-spacing: -.04em; margin: 0 0 .45rem -.3rem; }
 .st-magazine .m-names b { font-size: .95rem; letter-spacing: .4em; }
 .st-magazine .m-names i { font-size: .74rem; margin-top: .35rem; }
 .st-magazine .grid { width: 16.4rem; }
-.st-magazine .b-clock { margin-top: auto; padding-top: 1.2rem; }
-.st-magazine .time { font-size: 2.8rem; font-weight: 300; }
-.st-magazine .b-story { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.3); }
+.st-magazine .b-clock { margin-top: auto; padding-top: .8rem; }
+.st-magazine .grid i { height: 2rem; }
+.st-magazine .lunar { display: none; }
+.st-magazine .time { font-size: 2.5rem; font-weight: 300; }
+.st-magazine .date { margin-top: .35rem; }
+.st-magazine .b-story { margin-top: .9rem; padding-top: .8rem; border-top: 1px solid rgba(255,255,255,.3); }
 .st-magazine.ink-dark .b-story { border-top-color: rgba(0,0,0,.18); }
 .st-magazine .s-desc { font-size: .8rem; }
 .st-magazine.pos-l .shade {
