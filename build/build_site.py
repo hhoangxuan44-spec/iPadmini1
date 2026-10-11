@@ -15,7 +15,6 @@
     pip install Pillow
     python3 build/build_site.py                # 正式构建（需要能访问 commons.wikimedia.org）
     python3 build/build_site.py --fake 16      # 离线生成 16 张假图，仅用于本地调试界面
-    python3 build/build_site.py --count 160    # 指定图片数量
 """
 import argparse
 import colorsys
@@ -34,9 +33,13 @@ import urllib.request
 
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import theme  # noqa: E402
+from catalog import CATALOG  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(ROOT, "dist")
-SITE_FILES = ["index.html", "manifest.webmanifest", "css", "js", "img"]
+SITE_FILES = ["index.html", "manifest.webmanifest", "css", "js", "img", "fonts"]
 API = "https://commons.wikimedia.org/w/api.php"
 UA = "DeskCalendarBuilder/1.0 (personal desk calendar; https://github.com/hhoangxuan44-spec/iPadmini1)"
 
@@ -262,6 +265,9 @@ def save_versions(img, key, outdir):
     b.save(os.path.join(outdir, "b", key + ".jpg"), "JPEG", quality=72)
     entry["b"] = "photos/b/%s.jpg" % key
     entry["lum"], entry["accent"] = tone_and_accent(img)
+    small = img.copy()
+    small.thumbnail((640, 640), Image.LANCZOS)
+    entry["feat"] = theme.analyze(small)
     return entry
 
 
@@ -346,31 +352,42 @@ def thumb_url(file_title, width):
         urllib.parse.quote(name), width)
 
 
-def build_commons(count, seed, outdir):
-    picks = pick_commons(count, seed)
+def build_catalog(outdir):
+    """按 catalog.py 精选图库构建。"""
+    files = [c[0] for c in CATALOG]
+    infos = image_infos(files)
     entries = []
-    for i, p in enumerate(picks):
-        key = hashlib.sha1(p["file"].encode("utf-8")).hexdigest()[:12]
+    for i, (f, kind, title, sub, desc) in enumerate(CATALOG):
+        ii = infos.get(f)
+        if not ii:
+            report("  ✗ 找不到 %s" % f)
+            continue
+        meta = ii.get("extmetadata", {})
+        key = hashlib.sha1(f.encode("utf-8")).hexdigest()[:12]
         cached = os.path.join(CACHE, key + ".jpg")
         try:
             if os.path.exists(cached):
-                with open(cached, "rb") as f:
-                    data = f.read()
+                with open(cached, "rb") as fh:
+                    data = fh.read()
             else:
                 # Wikimedia 只允许标准缩略图宽度（1280 / 1920 / 3840 …）
-                data = http_get(thumb_url(p["file"], 1920), binary=True)
+                data = http_get(thumb_url(f, 1920), binary=True)
                 os.makedirs(CACHE, exist_ok=True)
-                with open(cached, "wb") as f:
-                    f.write(data)
+                with open(cached, "wb") as fh:
+                    fh.write(data)
                 time.sleep(0.5)
-            img = Image.open(io.BytesIO(data))
-            e = save_versions(img, key, outdir)
+            e = save_versions(Image.open(io.BytesIO(data)), key, outdir)
         except Exception as ex:  # noqa: BLE001
-            print("  ✗ %s (%s)" % (p["file"], ex))
+            report("  ✗ %s (%s)" % (f, ex))
             continue
-        e.update({k: p[k] for k in ("cat", "title", "artist", "license", "page")})
+        e.update({
+            "kind": kind, "title": title, "sub": sub, "desc": desc,
+            "artist": (strip_html((meta.get("Artist") or {}).get("value", "")) or "")[:60],
+            "license": strip_html((meta.get("LicenseShortName") or {}).get("value", "")),
+            "page": ii.get("descriptionurl", ""),
+        })
         entries.append(e)
-        print("  ✓ [%d/%d] %s" % (i + 1, len(picks), p["title"]))
+        print("  ✓ [%d/%d] %s" % (i + 1, len(CATALOG), title))
     return entries
 
 
@@ -389,7 +406,8 @@ def build_local(outdir):
         except Exception as ex:  # noqa: BLE001
             print("  ✗ %s (%s)" % (n, ex))
             continue
-        e.update({"cat": "own", "title": os.path.splitext(n)[0], "artist": "", "license": "", "page": ""})
+        e.update({"kind": "own", "title": os.path.splitext(n)[0], "sub": "我的照片", "desc": "",
+                  "artist": "", "license": "", "page": ""})
         entries.append(e)
         print("  ✓ own %s" % n)
     return entries
@@ -422,7 +440,9 @@ def build_fake(n, outdir):
             d.polygon(pts, fill=shade)
         img = img.filter(ImageFilter.GaussianBlur(1.2))
         e = save_versions(img, "fake%02d" % i, outdir)
-        e.update({"cat": "landscape", "title": "Test Landscape %d" % (i + 1),
+        kind = ["nature", "nature", "sky", "east", "nature", "west", "animal", "nature"][i % 8]
+        e.update({"kind": kind, "title": "测试风景 %d" % (i + 1), "sub": "离线测试 · 程序生成",
+                  "desc": "这是一张程序生成的测试图片，用来在本地检查排版。正式构建时会换成精选的风景与名画。",
                   "artist": "Generated", "license": "CC0", "page": ""})
         entries.append(e)
     return entries
@@ -444,8 +464,6 @@ def copy_site():
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fake", type=int, default=0, help="生成 N 张假图（离线调试）")
-    ap.add_argument("--count", type=int, default=150, help="从 Commons 选取的图片数量")
-    ap.add_argument("--seed", default="desk-calendar", help="选图随机种子（改了会换一批图）")
     args = ap.parse_args()
 
     if os.path.isdir(DIST):
@@ -460,11 +478,20 @@ def main():
     if args.fake:
         entries += build_fake(args.fake, photo_dir)
     else:
-        entries += build_commons(args.count, args.seed, photo_dir)
+        entries += build_catalog(photo_dir)
 
     if len(entries) < 2:
         print("图片太少（%d 张），构建失败" % len(entries))
         sys.exit(1)
+
+    theme.assign(entries)
+    styles = {}
+    for e in entries:
+        e["t"] = e.pop("theme")
+        for k in ("feat", "style", "lum", "accent"):
+            e.pop(k, None)
+        styles[e["t"]["style"]] = styles.get(e["t"]["style"], 0) + 1
+    report("风格分布：%s" % styles)
 
     os.makedirs(os.path.join(DIST, "data"), exist_ok=True)
     with open(os.path.join(DIST, "data", "photos.js"), "w", encoding="utf-8") as f:

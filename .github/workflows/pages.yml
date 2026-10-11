@@ -1,4 +1,4 @@
-name: 构建并发布台历
+name: 构建并发布月历
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           key: commons-${{ hashFiles('build/build_site.py') }}
           restore-keys: commons-
       - name: 下载图片并生成网站
-        run: python build/build_site.py --count 150
+        run: python build/build_site.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

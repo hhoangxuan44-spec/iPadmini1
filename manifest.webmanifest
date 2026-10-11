@@ -1,6 +1,6 @@
 {
-  "name": "光影台历",
-  "short_name": "台历",
+  "name": "光影月历",
+  "short_name": "月历",
   "start_url": "./",
   "display": "fullscreen",
   "orientation": "any",

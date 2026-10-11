@@ -6,64 +6,28 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="台历">
+<meta name="apple-mobile-web-app-title" content="光影月历">
 <meta name="theme-color" content="#000000">
 <meta name="format-detection" content="telephone=no">
-<title>光影台历</title>
+<title>光影月历</title>
 <link rel="apple-touch-icon" sizes="76x76" href="img/icon-76.png">
 <link rel="apple-touch-icon" sizes="152x152" href="img/icon-152.png">
 <link rel="apple-touch-icon" sizes="180x180" href="img/icon-180.png">
 <link rel="icon" sizes="192x192" href="img/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="css/calendar.css">
+<link rel="stylesheet" href="css/wall.css">
 </head>
 <body>
-
 <div id="stage"></div>
-
-<!-- 顶部浮层（不随纸页翻动） -->
-<div id="hud">
-  <div class="hud-left">
-    <div class="glass pill" id="credit">
-      <div class="glass-tint"></div>
-      <div class="pill-body">
-        <svg class="ico" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/></svg>
-        <span id="credit-title"></span>
-        <span id="credit-more"></span>
-      </div>
-    </div>
-  </div>
-  <div class="hud-right">
-    <div class="glass pill btn" id="btn-today">
-      <div class="glass-tint"></div>
-      <div class="pill-body">
-        <svg class="ico" viewBox="0 0 24 24"><path d="M9 14l-4-4 4-4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H11"/></svg>
-        <span>今天</span>
-      </div>
-    </div>
-    <div class="glass pill btn" id="btn-full">
-      <div class="glass-tint"></div>
-      <div class="pill-body">
-        <svg class="ico" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
-      </div>
-    </div>
-    <div class="glass pill" id="clock">
-      <div class="glass-tint"></div>
-      <div class="pill-body"><span id="clock-text">--:--</span></div>
-    </div>
-  </div>
-</div>
-
-<div id="hint"><svg class="ico" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg><span>上滑翻到明天</span></div>
+<div id="toast"></div>
 <div id="night"></div>
-<div id="nophotos">
+<div id="empty">
   <p>还没有图片</p>
-  <p class="small">请运行 <b>python3 build/build_site.py</b> 生成网站（见 README）</p>
+  <p class="small">请运行 python3 build/build_site.py 生成网站（见 README）</p>
 </div>
-
 <script src="js/config.js"></script>
 <script src="data/photos.js"></script>
 <script src="js/lunar.js"></script>
-<script src="js/calendar.js"></script>
+<script src="js/wall.js"></script>
 </body>
 </html>

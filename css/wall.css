@@ -1,0 +1,310 @@
+/*
+ * 光影月历
+ * 设计尺寸：横屏 1024×768 = 64rem × 48rem（JS 按屏幕设置根字号）
+ * 兼容 iOS 9 Safari：flex / transform / animation 全部带 -webkit- 前缀，
+ * 不使用 CSS 变量、grid、backdrop-filter。
+ */
+
+@font-face { font-family: "InterD"; font-weight: 200; src: url(../fonts/inter-extralight.woff) format("woff"); }
+@font-face { font-family: "InterD"; font-weight: 300; src: url(../fonts/inter-light.woff) format("woff"); }
+@font-face { font-family: "InterD"; font-weight: 400; src: url(../fonts/inter-regular.woff) format("woff"); }
+@font-face { font-family: "InterD"; font-weight: 500; src: url(../fonts/inter-medium.woff) format("woff"); }
+@font-face { font-family: "InterD"; font-weight: 600; src: url(../fonts/inter-semibold.woff) format("woff"); }
+
+html, body {
+  margin: 0; padding: 0; height: 100%; overflow: hidden;
+  background: #000; color: #fff;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Roboto", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+  -webkit-text-size-adjust: 100%;
+  cursor: default;
+}
+.num { font-family: "InterD", -apple-system, "Helvetica Neue", sans-serif; }
+
+/* ======================================================== 壁纸层 */
+#stage { position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; }
+.slide {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden;
+  opacity: 0;
+  -webkit-transition: opacity 2.2s ease; transition: opacity 2.2s ease;
+}
+.slide.in { opacity: 1; }
+.photo {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background-size: cover; background-position: center; background-repeat: no-repeat;
+}
+.shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+
+/* Ken Burns：极慢的推拉平移 */
+.kb { -webkit-animation-timing-function: linear; animation-timing-function: linear;
+      -webkit-animation-fill-mode: forwards; animation-fill-mode: forwards; }
+.kb1 { -webkit-animation-name: kb1; animation-name: kb1; -webkit-transform-origin: 30% 40%; transform-origin: 30% 40%; }
+.kb2 { -webkit-animation-name: kb2; animation-name: kb2; -webkit-transform-origin: 70% 60%; transform-origin: 70% 60%; }
+.kb3 { -webkit-animation-name: kb3; animation-name: kb3; }
+.kb4 { -webkit-animation-name: kb4; animation-name: kb4; -webkit-transform-origin: 50% 30%; transform-origin: 50% 30%; }
+@-webkit-keyframes kb1 { from { -webkit-transform: scale(1); } to { -webkit-transform: scale(1.09); } }
+@keyframes kb1 { from { transform: scale(1); } to { transform: scale(1.09); } }
+@-webkit-keyframes kb2 { from { -webkit-transform: scale(1.09); } to { -webkit-transform: scale(1); } }
+@keyframes kb2 { from { transform: scale(1.09); } to { transform: scale(1); } }
+@-webkit-keyframes kb3 { from { -webkit-transform: scale(1.06) translate3d(-1.5%,0,0); } to { -webkit-transform: scale(1.06) translate3d(1.5%,0,0); } }
+@keyframes kb3 { from { transform: scale(1.06) translate3d(-1.5%,0,0); } to { transform: scale(1.06) translate3d(1.5%,0,0); } }
+@-webkit-keyframes kb4 { from { -webkit-transform: scale(1.02) translate3d(0,1%,0); } to { -webkit-transform: scale(1.1) translate3d(0,-1%,0); } }
+@keyframes kb4 { from { transform: scale(1.02) translate3d(0,1%,0); } to { transform: scale(1.1) translate3d(0,-1%,0); } }
+
+/* ======================================================== 通用排版 */
+.panel, .story-float { position: absolute; z-index: 2; }
+.panel-in { position: relative; z-index: 3; }
+.ink-light .panel, .ink-light .story-float { color: #fff; }
+.ink-dark .panel { color: #1d1d1f; }
+
+.sep { margin: 0 .4em; opacity: .5; }
+
+/* 时钟块 */
+.time { font-size: 4.2rem; font-weight: 200; line-height: 1; letter-spacing: -.02em; }
+.time .colon { position: relative; top: -.06em; margin: 0 .03em; opacity: .85; }
+.date { margin-top: .55rem; font-size: 1.05rem; font-weight: 500; letter-spacing: .04em; }
+.lunar { margin-top: .3rem; font-size: .82rem; font-weight: 400; opacity: .78; letter-spacing: .04em; }
+.chip {
+  display: inline-block; margin-left: .5rem; padding: 0 .55rem; height: 1.3rem; line-height: 1.3rem;
+  border-radius: .65rem; font-size: .7rem; font-weight: 700; letter-spacing: .06em; color: #1d1d1f;
+  vertical-align: 1px;
+}
+.ink-dark .chip { color: #fff; }
+
+/* 月历块 */
+.b-month { margin-top: 1.5rem; }
+.m-head { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-bottom: .55rem; }
+.m-num { font-size: 2rem; font-weight: 300; line-height: 1; margin-right: .7rem; }
+.m-names b { display: block; font-size: .78rem; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; }
+.m-names i { display: block; font-style: normal; font-size: .68rem; opacity: .6; letter-spacing: .1em; margin-top: .15rem; }
+.grid { display: -webkit-flex; display: flex; -webkit-flex-wrap: wrap; flex-wrap: wrap; width: 18.6rem; }
+.grid em, .grid i { display: block; width: 14.2857%; text-align: center; font-style: normal; }
+.grid em { font-size: .66rem; font-weight: 600; opacity: .55; height: 1.5rem; line-height: 1.5rem; }
+.grid i { height: 2.2rem; }
+.grid i b {
+  display: block; width: 1.5rem; height: 1.5rem; line-height: 1.5rem; margin: 0 auto;
+  border-radius: 50%; font-size: .9rem; font-weight: 500;
+}
+.grid i s { display: block; text-decoration: none; font-size: .56rem; line-height: .7rem; opacity: .6; white-space: nowrap; overflow: hidden; }
+.grid .we { opacity: .62; }
+.grid .fest s { opacity: 1; font-weight: 600; }
+.grid .today { opacity: 1; }
+.grid .today b { color: #1d1d1f; font-weight: 600; }
+.ink-dark .grid .today b { color: #fff; }
+
+/* 图片说明 */
+.s-title { font-size: 1.3rem; font-weight: 600; letter-spacing: .04em; line-height: 1.35; }
+.s-sub { margin-top: .3rem; font-size: .74rem; font-weight: 600; letter-spacing: .08em; }
+.s-desc { margin-top: .6rem; font-size: .86rem; line-height: 1.7; opacity: .92; letter-spacing: .02em; }
+.s-credit { margin-top: .55rem; font-size: .58rem; opacity: .5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 文字压在照片上时的阴影 */
+.st-minimal.ink-light .panel, .st-magazine.ink-light .panel, .story-float { text-shadow: 0 .06rem .9rem rgba(0,0,0,.45), 0 0 .15rem rgba(0,0,0,.25); }
+.st-minimal.ink-dark .panel, .st-magazine.ink-dark .panel { text-shadow: 0 0 1rem rgba(255,255,255,.55); }
+
+/* 默认：说明在面板里；极简与玻璃把说明放到对角 */
+.story-float { display: none; }
+.st-minimal .story-float, .st-glass .story-float { display: block; width: 21rem; bottom: 2.6rem; }
+.st-minimal .panel .b-story, .st-glass .panel .b-story { display: none; }
+.pos-tl .story-float, .pos-bl .story-float { right: 2.8rem; }
+.pos-tr .story-float, .pos-br .story-float { left: 2.8rem; }
+
+/* 角落位置 */
+.pos-tl .panel { top: 2.6rem; left: 2.8rem; }
+.pos-tr .panel { top: 2.6rem; right: 2.8rem; }
+.pos-bl .panel { bottom: 2.6rem; left: 2.8rem; }
+.pos-br .panel { bottom: 2.6rem; right: 2.8rem; }
+
+/* ======================================================== 1 极简 */
+.st-minimal .panel { width: 19rem; }
+.st-minimal .time { font-size: 5rem; }
+/* 说明后面一团柔和的暗影，保证任何照片上都看得清 */
+.st-minimal .story-float:before, .st-minimal.ink-light .panel:before, .st-minimal.ink-dark .panel:before {
+  content: ''; position: absolute; top: -5rem; left: -6rem; right: -6rem; bottom: -5rem; z-index: -1;
+  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(0,0,0,.32), rgba(0,0,0,0));
+  background: radial-gradient(closest-side, rgba(0,0,0,.32), rgba(0,0,0,0));
+}
+.st-minimal.ink-dark .panel:before {
+  background: -webkit-radial-gradient(center, ellipse closest-side, rgba(255,255,255,.4), rgba(255,255,255,0));
+  background: radial-gradient(closest-side, rgba(255,255,255,.4), rgba(255,255,255,0));
+}
+
+/* ======================================================== 2 玻璃 */
+.glass { border-radius: 1.8rem; box-shadow: 0 1.6rem 3.2rem -1rem rgba(0,0,0,.45), 0 .15rem .5rem rgba(0,0,0,.12); }
+.glass-clip {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 0;
+  border-radius: inherit; overflow: hidden;
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
+}
+.glass-bg { position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }
+.glass:before {   /* 着色 */
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; border-radius: inherit;
+  background: -webkit-linear-gradient(-45deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 55%, rgba(255,255,255,.12));
+  background: linear-gradient(135deg, rgba(255,255,255,.2), rgba(255,255,255,.05) 55%, rgba(255,255,255,.12));
+}
+.ink-light .glass:before {
+  background: -webkit-linear-gradient(-45deg, rgba(255,255,255,.16), rgba(20,20,26,.18) 55%, rgba(20,20,26,.26));
+  background: linear-gradient(135deg, rgba(255,255,255,.16), rgba(20,20,26,.18) 55%, rgba(20,20,26,.26));
+}
+.ink-dark .panel.glass:before {
+  background: -webkit-linear-gradient(-45deg, rgba(255,255,255,.55), rgba(255,255,255,.32));
+  background: linear-gradient(135deg, rgba(255,255,255,.55), rgba(255,255,255,.32));
+}
+.glass:after {    /* 玻璃边缘的受光亮边 */
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 4; border-radius: inherit; pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.22), inset 0 1.5px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.08);
+}
+.st-glass .panel { width: 22.2rem; }
+.st-glass .panel .panel-in { padding: 1.7rem 1.8rem 1.4rem; }
+.st-glass .story-float { width: 22rem; border-radius: 1.5rem; color: #fff; text-shadow: none; }
+.st-glass .story-float .panel-in { padding: 1.3rem 1.6rem 1.2rem; }
+.st-glass .story-float .s-title { font-size: 1.15rem; }
+.st-glass .story-float .s-desc { font-size: .8rem; }
+
+/* ======================================================== 3 杂志：整列侧栏 */
+.st-magazine .panel { top: 0; bottom: 0; width: 22rem; }
+.st-magazine.pos-l .panel { left: 0; }
+.st-magazine.pos-r .panel { right: 0; }
+.st-magazine .panel-in {
+  height: 100%; box-sizing: border-box; padding: 3rem 2.8rem 2.6rem;
+  display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+}
+.st-magazine .b-month { margin-top: 0; -webkit-order: -1; order: -1; }
+.st-magazine .m-head { display: block; margin-bottom: 1.2rem; }
+.st-magazine .m-num { display: block; font-size: 8.4rem; font-weight: 200; line-height: .86; letter-spacing: -.04em; margin: 0 0 .6rem -.4rem; }
+.st-magazine .m-names b { font-size: .95rem; letter-spacing: .4em; }
+.st-magazine .m-names i { font-size: .74rem; margin-top: .35rem; }
+.st-magazine .grid { width: 16.4rem; }
+.st-magazine .b-clock { margin-top: auto; padding-top: 1.2rem; }
+.st-magazine .time { font-size: 2.8rem; font-weight: 300; }
+.st-magazine .b-story { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,.3); }
+.st-magazine.ink-dark .b-story { border-top-color: rgba(0,0,0,.18); }
+.st-magazine .s-desc { font-size: .8rem; }
+.st-magazine.pos-l .shade {
+  background: -webkit-linear-gradient(left, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+  background: linear-gradient(to right, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+}
+.st-magazine.pos-r .shade {
+  background: -webkit-linear-gradient(right, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+  background: linear-gradient(to left, rgba(0,0,0,.62), rgba(0,0,0,.35) 28%, rgba(0,0,0,0) 48%);
+}
+.st-magazine.ink-dark.pos-l .shade {
+  background: -webkit-linear-gradient(left, rgba(255,255,255,.7), rgba(255,255,255,.4) 28%, rgba(255,255,255,0) 48%);
+  background: linear-gradient(to right, rgba(255,255,255,.7), rgba(255,255,255,.4) 28%, rgba(255,255,255,0) 48%);
+}
+.st-magazine.ink-dark.pos-r .shade {
+  background: -webkit-linear-gradient(right, rgba(255,255,255,.7), rgba(255,255,255,.4) 28%, rgba(255,255,255,0) 48%);
+  background: linear-gradient(to left, rgba(255,255,255,.7), rgba(255,255,255,.4) 28%, rgba(255,255,255,0) 48%);
+}
+
+/* ======================================================== 4 色带：底部整条 */
+.st-band .panel { left: 0; right: 0; bottom: 0; }
+.panel-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+.st-band .panel-bg { opacity: .9; border-top: .2rem solid transparent; }
+.st-band .panel-in {
+  display: -webkit-flex; display: flex; -webkit-align-items: flex-start; align-items: flex-start;
+  padding: 1.9rem 2.8rem 1.8rem;
+}
+.st-band .b-clock { width: 15.5rem; -webkit-flex: none; flex: none; }
+.st-band .time { font-size: 3.8rem; }
+.st-band .b-month { margin: 0 2.6rem 0 0; -webkit-flex: none; flex: none; }
+.st-band .m-head { display: none; }
+.st-band .grid i { height: 1.85rem; }
+.st-band .grid i b { width: 1.3rem; height: 1.3rem; line-height: 1.3rem; font-size: .82rem; }
+.st-band .grid i s { font-size: .5rem; line-height: .55rem; }
+.st-band .grid em { height: 1.2rem; line-height: 1.2rem; }
+.st-band .b-story { -webkit-flex: 1; flex: 1; min-width: 0; }
+.st-band .s-desc { font-size: .8rem; }
+.st-band .shade {
+  background: -webkit-linear-gradient(bottom, rgba(0,0,0,.25), rgba(0,0,0,0) 45%);
+  background: linear-gradient(to top, rgba(0,0,0,.25), rgba(0,0,0,0) 45%);
+}
+
+/* ======================================================== 5 宣纸 / 画廊标签 */
+.st-paper .panel {
+  width: 21.5rem; color: #2a2420; text-shadow: none;
+  box-shadow: 0 1.4rem 3rem -1rem rgba(0,0,0,.55), 0 .1rem .3rem rgba(0,0,0,.2);
+}
+.st-paper .panel-bg {
+  background-image: -webkit-linear-gradient(-30deg, rgba(255,255,255,.35), rgba(255,255,255,0) 40%, rgba(120,90,50,.06));
+  background-image: linear-gradient(120deg, rgba(255,255,255,.35), rgba(255,255,255,0) 40%, rgba(120,90,50,.06));
+}
+.st-paper .panel-bg:after {  /* 细双线边框，像装裱 */
+  content: ''; position: absolute; top: .55rem; left: .55rem; right: .55rem; bottom: .55rem;
+  border: 1px solid rgba(80,50,30,.28);
+}
+.st-paper .panel-in { padding: 2rem 2.1rem 1.7rem; }
+.st-paper .time, .st-paper .m-num, .st-paper .grid b {
+  font-family: Georgia, "Times New Roman", "InterD", serif;
+}
+.st-paper .time { font-size: 2.9rem; font-weight: 400; letter-spacing: 0; }
+.st-paper .s-title, .st-paper .date, .st-paper .s-desc, .st-paper .lunar, .st-paper .grid s, .st-paper .grid em {
+  font-family: "Songti SC", "STSongti-SC-Regular", "STSong", "Noto Serif SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+}
+.st-paper .s-title { font-size: 1.4rem; font-weight: 700; letter-spacing: .08em; }
+.st-paper .b-month { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid rgba(80,50,30,.2); }
+.st-paper .m-num { font-weight: 400; }
+.st-paper .grid { width: 17.3rem; }
+.st-paper .grid .today b { color: #fff; }
+.st-paper .b-story { margin-top: .9rem; padding-top: 1rem; border-top: 1px solid rgba(80,50,30,.2); }
+.st-paper .s-desc { font-size: .84rem; line-height: 1.75; }
+.st-paper .chip { color: #fff; }
+.seal {
+  position: absolute; top: 1.8rem; right: 1.8rem;
+  width: 1.9rem; padding: .35rem 0; text-align: center;
+  background: #b23a2e; color: #f6efe0; border-radius: .2rem;
+  font-family: "Songti SC", "STSongti-SC-Regular", "Noto Serif SC", serif; font-weight: 700;
+  font-size: .82rem; line-height: 1.1;
+  -webkit-transform: rotate(-4deg); transform: rotate(-4deg);
+  box-shadow: inset 0 0 0 .12rem rgba(246,239,224,.35);
+  opacity: .92;
+}
+.st-paper .shade {
+  background: -webkit-radial-gradient(center, ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
+  background: radial-gradient(ellipse farthest-corner, rgba(0,0,0,0) 55%, rgba(0,0,0,.25));
+}
+.st-paper .story-float { display: none; }
+
+/* ======================================================== 竖屏：统一放到底部 */
+body.portrait .panel { top: auto !important; left: 1.6rem !important; right: 1.6rem !important; bottom: 1.6rem !important; width: auto !important; }
+body.portrait .story-float { display: none !important; }
+body.portrait .panel .b-story { display: block !important; width: 100%; margin-top: 1.2rem; -webkit-flex: none !important; flex: none !important; }
+body.portrait .panel-in {
+  height: auto !important; display: -webkit-flex !important; display: flex !important;
+  -webkit-flex-wrap: wrap; flex-wrap: wrap; -webkit-flex-direction: row !important; flex-direction: row !important;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  padding: 1.6rem 1.8rem 1.4rem !important;
+}
+body.portrait .b-month { margin-top: 0 !important; padding-top: 0 !important; border-top: 0 !important; -webkit-order: 0 !important; order: 0 !important; }
+body.portrait .b-clock { margin-top: 0 !important; padding-top: 0 !important; }
+body.portrait .st-magazine .m-num { font-size: 2rem; display: inline-block; margin: 0 .7rem 0 0; }
+body.portrait .st-magazine .m-head { display: -webkit-flex; display: flex; }
+body.portrait .shade {
+  background: -webkit-linear-gradient(bottom, rgba(0,0,0,.6), rgba(0,0,0,0) 60%) !important;
+  background: linear-gradient(to top, rgba(0,0,0,.6), rgba(0,0,0,0) 60%) !important;
+}
+body.portrait .ink-dark .panel { color: #fff; }
+body.portrait .st-paper .panel { color: #2a2420; }
+body.portrait .st-minimal .panel:before { display: none; }
+
+/* ======================================================== 提示 / 夜间 / 空 */
+#toast {
+  position: fixed; left: 50%; top: 1.6rem; z-index: 50;
+  width: 12rem; margin-left: -6rem; height: 2.4rem; line-height: 2.4rem; border-radius: 1.2rem;
+  text-align: center; font-size: .9rem; font-weight: 600; letter-spacing: .06em;
+  background: rgba(20,20,24,.55); color: #fff;
+  opacity: 0; pointer-events: none;
+  -webkit-transition: opacity .4s ease; transition: opacity .4s ease;
+}
+#toast.on { opacity: 1; }
+#night {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100;
+  background: #000; opacity: 0; pointer-events: none;
+  -webkit-transition: opacity 4s ease; transition: opacity 4s ease;
+}
+#empty { display: none; }
+body.empty #empty { display: block; position: fixed; top: 40%; left: 0; right: 0; text-align: center; font-size: 1.3rem; }
+#empty .small { font-size: .85rem; opacity: .7; }
