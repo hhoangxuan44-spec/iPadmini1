@@ -30,7 +30,12 @@
   var iosVer = /OS (\d+)_\d+(_\d+)? like Mac OS X/.exec(ua);
   // iOS 10 及以下（iPad mini 1 / iPad 2 / iPad 3 等）视为老设备：关掉耗性能的效果
   var LITE = (iosVer && +iosVer[1] <= 10) || /[?&]lite=1/.test(location.search);
-  var hiDPI = !LITE && Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 1400;
+  // 安卓 App 里运行时：app=wall 动态壁纸 / dream 屏保 / full 全屏摆件；it、ib 是上下要避开的状态栏与 Dock（CSS 像素）
+  function param(k) { var m = new RegExp('[?&]' + k + '=([\\w.]+)').exec(location.search); return m ? m[1] : ''; }
+  var APP = param('app');
+  var WALL = APP === 'wall';
+  var INSET_T = +param('it') || 0, INSET_B = +param('ib') || 0;
+  var hiDPI = !LITE && (!!APP || Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 1400);
 
   // ------------------------------------------------------------ 小工具
   function $(id) { return document.getElementById(id); }
@@ -65,9 +70,10 @@
     W = window.innerWidth;
     H = window.innerHeight;
     PORTRAIT = H > W * 1.05;
-    var s;
-    if (PORTRAIT) s = W < 600 ? W / 470 : Math.min(W / 768, H / 1024);
-    else s = Math.min(W / 1024, H / 768);
+    var s, h = H - INSET_T - INSET_B;
+    if (PORTRAIT) s = W < 600 ? W / 470 : Math.min(W / 768, h / 1024);
+    else s = Math.min(W / 1024, h / 768);
+    if (WALL) s *= 0.9;          // 桌面上还有图标，日历稍微小一点
     document.documentElement.style.fontSize = (16 * s) + 'px';
     toggleClass(document.body, 'portrait', PORTRAIT);
     toggleClass(document.body, 'landscape', !PORTRAIT);
@@ -216,14 +222,19 @@
       var art = el('div', 'art', s);
       s._artEl = art;
       s._fullEl = el('div', 'art-img', art);
-    } else if (!LITE && cfg.kenBurns !== false) {
+    } else if (!LITE && !WALL && cfg.kenBurns !== false) {
       // 推拉动画在这页真正露出来时才开始（见 startKenBurns）
       s._kb = ' kb kb' + (1 + Math.floor(Math.random() * 4));
       var dur = (cfg.intervalMinutes || 5) * 60 + 20;
       ph.style.webkitAnimationDuration = ph.style.animationDuration = dur + 's';
     }
 
-    var panel = el('div', 'panel' + (t.style === 'glass' ? ' glass' : ''), s);
+    // 日历与说明放在 ui 层里；App 里 ui 层会让开状态栏和 Dock
+    var ui = el('div', 'ui', s);
+    ui.style.top = INSET_T + 'px';
+    ui.style.bottom = INSET_B + 'px';
+    s._ui = ui;
+    var panel = el('div', 'panel' + (t.style === 'glass' ? ' glass' : ''), ui);
     if (t.style === 'band' || t.style === 'paper' || t.style === 'vpoem') {
       el('div', 'panel-bg', panel).style.backgroundColor = t.bg;
     }
@@ -237,7 +248,7 @@
     el('div', 'b-story', inner, storyHTML(p));
 
     // 极简 / 玻璃 / 海报 / 诗笺：图片说明放在对角的下方
-    var fl = el('div', 'story-float' + (t.style === 'glass' ? ' glass' : ''), s);
+    var fl = el('div', 'story-float' + (t.style === 'glass' ? ' glass' : ''), ui);
     el('div', 'b-story', el('div', 'panel-in', fl), storyHTML(p, t.style === 'vpoem'));
 
     paint(s);
@@ -273,11 +284,11 @@
     var p = s._p, rem = parseFloat(document.documentElement.style.fontSize) || 16;
     var x0, y0, aw, ah;
     if (PORTRAIT) {
-      x0 = 1.6 * rem; y0 = 2 * rem; aw = W - 3.2 * rem; ah = H * 0.5;
+      x0 = 1.6 * rem; y0 = 2 * rem + INSET_T; aw = W - 3.2 * rem; ah = (H - INSET_T - INSET_B) * 0.5;
     } else {
       var side = 24.5 * rem;                  // 右（或左）侧留给说明牌和月历
       x0 = s._t.pos === 'l' ? side : 2.6 * rem;
-      y0 = 2.6 * rem; aw = W - side - 2.6 * rem; ah = H - 5.2 * rem;
+      y0 = 2.6 * rem + INSET_T; aw = W - side - 2.6 * rem; ah = H - INSET_T - INSET_B - 5.2 * rem;
     }
     var pad = 2 * (1.5 + 0.45) * rem;         // 卡纸 + 画框
     var ratio = (p.w || 4) / (p.h || 3);
@@ -305,8 +316,8 @@
         c._bg = el('div', 'glass-bg', clip);
         if (p.b) c._bg.style.backgroundImage = 'url("' + p.b + '")';
       }
-      c._bg.style.left = (g.x - c.offsetLeft) + 'px';
-      c._bg.style.top = (g.y - c.offsetTop) + 'px';
+      c._bg.style.left = (g.x - c.offsetLeft - s._ui.offsetLeft) + 'px';
+      c._bg.style.top = (g.y - c.offsetTop - s._ui.offsetTop) + 'px';
       c._bg.style.width = g.w + 'px';
       c._bg.style.height = g.h + 'px';
     }
@@ -319,6 +330,7 @@
   //   2. 分段切换：旧日历先淡出 → 只把上层照片淡出、露出早已就位的下一页 → 新日历再轻轻浮现
   //      任何时刻屏幕上都只有一套日历，不会出现两套文字叠在一起的残影
   var queue = [], cur = null, nxt = null, timer = null, busy = false, wantReveal = false, preparing = false;
+  var shownAt = 0, paused = false;
   var UI_OUT = 450, PHOTO_FADE = 1600, UI_IN_AT = 1000;
 
   function shuffle(a) {
@@ -363,7 +375,8 @@
 
   // ---- 离线：断网（或连续加载失败）时只轮播离线图包里的图（p.o）
   var failStreak = 0;
-  function offlineMode() { return navigator.onLine === false || failStreak >= 3; }
+  // App 自己缓存全部图片，不需要离线图包
+  function offlineMode() { return !APP && (navigator.onLine === false || failStreak >= 3); }
   function usable(p, offline) {
     if (p._failAt && Date.now() - p._failAt < 30 * 60000) return false;   // 半小时内加载失败过
     return !offline || !!p.o;
@@ -459,6 +472,7 @@
     nxt = null;
     cur = s;
     refreshSlide(s);           // 准备之后可能过了几分钟，先刷新时钟和月历
+    shownAt = Date.now();
     startKenBurns(s);
 
     toggleClass(old, 'boot', false);
@@ -480,7 +494,9 @@
 
   function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(advance, (cfg.intervalMinutes || 5) * 60000);
+    if (paused) return;
+    var left = (cfg.intervalMinutes || 5) * 60000 - (Date.now() - shownAt);
+    timer = setTimeout(advance, Math.max(left, 1000));
   }
 
   function boot(p) {
@@ -493,6 +509,7 @@
       layoutSlide(s);
       startKenBurns(s);
       cur = s;
+      shownAt = Date.now();
       schedule();
       setTimeout(prepare, 3000);
     });
@@ -608,6 +625,21 @@
     window.addEventListener('offline', function () { queue = []; }, false);
   })();
 
+  // ------------------------------------------------------------ 安卓 App 调用
+  // 壁纸被应用挡住时暂停换图；回到桌面时刷新时钟，超时了就立刻换一张
+  window.WallApp = {
+    next: function () { advance(); },
+    pause: function () { paused = true; clearTimeout(timer); },
+    resume: function () {
+      if (!paused) return;
+      paused = false;
+      lastMin = -1;
+      if (cur && !sameDay(new Date(), lastDay)) { lastDay = new Date(); renderMonths(); }
+      else refreshSlide(cur);
+      schedule();
+    }
+  };
+
   // ------------------------------------------------------------ 启动
   var resizeTimer = null;
   window.addEventListener('resize', function () {
@@ -620,6 +652,7 @@
 
   measure();
   toggleClass(document.body, 'lite', LITE);
+  if (APP) toggleClass(document.body, 'app-' + APP, true);
   if (!photos.length) {
     toggleClass(document.body, 'empty', true);
   } else {

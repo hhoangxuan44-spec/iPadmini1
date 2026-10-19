@@ -71,6 +71,19 @@
 
 技术说明：使用 HTML5 Application Cache（`offline.appcache`，构建时自动生成）。iOS 9 的 Safari 支持它；新版浏览器已经移除了这项技术，但在新设备上网页仍可正常在线使用。离线图包的大小可以用 `python3 build/build_site.py --offline-mb 30` 调整。
 
+## 安卓平板 App（动态壁纸 / 屏保 / 全屏摆件）
+
+安卓上可以安装「光影月历」App，月历不再需要浏览器：
+
+- **桌面动态壁纸**：桌面背景就是月历轮播，日历自动避开顶部状态栏和底部 Dock；用其他应用或熄屏时自动暂停，回到桌面时如果已超过 5 分钟就换一张
+- **屏幕保护程序**：充电时全屏显示月历，碰一下屏幕回到桌面
+- **全屏摆件模式**：和 iPad 上一样全屏常亮，轻点换图、左右滑看其他月份
+- **离线**：连 Wi-Fi 打开 App 时会自动把全部图片（1920 像素大图）存到本地，之后断网也能完整轮播；网站更新后 App 自动用上新内容，不用重装
+
+安装：平板浏览器打开 `https://<你的用户名>.github.io/iPadmini1/guangying.apk` 下载并安装（需要允许「安装未知应用」），打开 App 点「设为桌面动态壁纸」。
+
+APK 由 Actions 在每次发布时自动打包（`android/`，Java，无第三方依赖）。签名证书 `android/app/guangying.keystore` 固定放在仓库里，保证新版本能直接覆盖安装；它只用于自己侧载安装，不要用于上架应用商店。
+
 ## 操作
 
 | 操作 | 效果 |
@@ -122,5 +135,6 @@ build/theme.py           每张图的日历主题分析（颜色、位置、风�
 build/build_site.py      下载图片、生成多尺寸与模糊图、输出 dist/
 build/list_candidates.py 列出候选图片（供挑选）
 build/make_icons.py      生成主屏幕图标
+android/                 安卓 App：动态壁纸、屏保、全屏摆件、图片本地缓存
 .github/workflows/       自动构建与发布
 ```

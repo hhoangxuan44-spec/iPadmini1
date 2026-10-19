@@ -56,6 +56,8 @@ html, body {
   background-size: cover; background-position: center; background-repeat: no-repeat;
 }
 .shade { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; }
+/* 日历与说明所在的层（安卓 App 里会让开状态栏和 Dock） */
+.ui { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; }
 
 /* Ken Burns：极慢的推拉平移 */
 .kb { -webkit-animation-timing-function: linear; animation-timing-function: linear;

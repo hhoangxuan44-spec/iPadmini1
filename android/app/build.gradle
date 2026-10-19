@@ -1,0 +1,39 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "io.github.guangying"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "io.github.guangying"
+        minSdk 30
+        targetSdk 35
+        // 每次 Actions 构建自动加 1，这样新版 APK 可以直接覆盖安装
+        versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+        versionName "1." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    // 固定的签名，保证每次构建出来的 APK 都能覆盖旧版本（只用于自己侧载安装）
+    signingConfigs {
+        release {
+            storeFile file("guangying.keystore")
+            storePassword "guangying"
+            keyAlias "guangying"
+            keyPassword "guangying"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
