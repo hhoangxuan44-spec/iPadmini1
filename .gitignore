@@ -3,3 +3,5 @@ __pycache__/
 build/.cache/
 build/report.txt
 build/candidates.txt
+gradle-8.9-bin.zip
+gradle-8.9/
