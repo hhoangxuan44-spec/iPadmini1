@@ -361,18 +361,32 @@
     return w;
   }
 
+  // ---- 离线：断网（或连续加载失败）时只轮播离线图包里的图（p.o）
+  var failStreak = 0;
+  function offlineMode() { return navigator.onLine === false || failStreak >= 3; }
+  function usable(p, offline) {
+    if (p._failAt && Date.now() - p._failAt < 30 * 60000) return false;   // 半小时内加载失败过
+    return !offline || !!p.o;
+  }
+
   var recent = [], sceneKey = '';
   function nextPhoto() {
     var c = scene(new Date());
-    if (!queue.length || c.key !== sceneKey) {
+    var offline = offlineMode();
+    var key = c.key + (offline ? '|off' : '');
+    if (!queue.length || key !== sceneKey) {
       // 加权随机排序（权重越高越可能排在前面），最近出现过的图先不放进来
-      sceneKey = c.key;
+      sceneKey = key;
       var keep = Math.min(30, Math.floor(photos.length / 3));
       var pool = [];
       for (var i = 0; i < photos.length; i++) {
         var p = photos[i];
+        if (!usable(p, offline)) continue;
         if (recent.indexOf(p) >= 0 && photos.length > keep + 1) continue;
         pool.push({ p: p, k: Math.pow(Math.random(), 1 / weight(p, c)) });
+      }
+      if (!pool.length) {          // 万一一张都不符合，就不挑了，全部参与
+        for (var k = 0; k < photos.length; k++) pool.push({ p: photos[k], k: Math.random() });
       }
       pool.sort(function (a, b) { return b.k - a.k; });
       queue = [];
@@ -384,7 +398,8 @@
     return next;
   }
 
-  function srcOf(p) { return hiDPI && p.l ? p.l : p.m; }
+  // 离线图包里只存了 1280 像素的版本，断网时都用它
+  function srcOf(p) { return hiDPI && p.l && !offlineMode() ? p.l : p.m; }
 
   function startKenBurns(s) {
     if (s._kb) { s._photoEl.className += s._kb; s._kb = null; }
@@ -410,8 +425,14 @@
       s._fullEl.style.backgroundImage = 'url("' + img.src + '")';
       cb(s);
     }
-    img.onload = ok;
-    img.onerror = function () { if (!done) { done = true; cb(null); } };
+    img.onload = function () { failStreak = 0; ok(); };
+    img.onerror = function () {
+      if (done) return;
+      done = true;
+      p._failAt = Date.now();
+      failStreak++;
+      cb(null);
+    };
     img.src = srcOf(p);
   }
 
@@ -566,6 +587,26 @@
   }
   var bootAt = Date.now();
   function performanceAge() { return Date.now() - bootAt; }
+
+  // ------------------------------------------------------------ 离线缓存（Application Cache，iOS 9 支持）
+  // 第一次联网打开时，把网页和离线图包存到本地；之后网站更新时在后台下载新版本，下载完自动刷新。
+  (function () {
+    var ac = window.applicationCache;
+    if (!ac || !ac.addEventListener) return;
+    var first = ac.status === ac.UNCACHED || ac.status === ac.DOWNLOADING;
+    ac.addEventListener('progress', function (e) {
+      if (first && e.total) toast('离线图包下载中 ' + e.loaded + '/' + e.total);
+    }, false);
+    ac.addEventListener('cached', function () { toast('离线图包已就绪，断网也能用'); }, false);
+    ac.addEventListener('updateready', function () {
+      try { ac.swapCache(); } catch (e) { /* 忽略 */ }
+      if (!busy) location.reload();
+    }, false);
+    ac.addEventListener('error', function () { /* 断网或服务器不可用，继续用已缓存的版本 */ }, false);
+    // 联网状态变化时重新排队，让轮播立刻切换到合适的图片
+    window.addEventListener('online', function () { failStreak = 0; queue = []; }, false);
+    window.addEventListener('offline', function () { queue = []; }, false);
+  })();
 
   // ------------------------------------------------------------ 启动
   var resizeTimer = null;

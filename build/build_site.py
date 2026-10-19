@@ -465,9 +465,74 @@ def copy_site():
     open(os.path.join(DIST, ".nojekyll"), "w").close()
 
 
+def _size(rel):
+    return os.path.getsize(os.path.join(DIST, rel))
+
+
+def pick_offline(entries, budget_mb):
+    """
+    挑一部分图做「离线图包」（iPad 断网时只轮播这些）。
+    按类别、再按风格轮流挑选，保证题材和设计都齐全，直到达到大小上限。
+    """
+    groups = {}
+    for e in entries:
+        key = (e.get("kind", ""), e["t"]["style"])
+        groups.setdefault(key, []).append(e)
+    for g in groups.values():
+        g.sort(key=lambda e: hashlib.sha1(e["m"].encode()).hexdigest())
+    keys = sorted(groups, key=lambda k: (k[0], k[1]))
+    budget, used, n = budget_mb * 1024 * 1024, 0, 0
+    while any(groups.values()):
+        progressed = False
+        for k in keys:
+            if not groups[k]:
+                continue
+            e = groups[k].pop(0)
+            size = _size(e["m"]) + _size(e["b"])
+            if used + size > budget:
+                continue
+            e["o"] = 1
+            used += size
+            n += 1
+            progressed = True
+        if not progressed:
+            break
+    report("离线图包：%d 张，%.1f MB" % (n, used / 1048576.0))
+
+
+def write_appcache(entries):
+    """
+    生成 offline.appcache（HTML5 Application Cache，iOS 9 Safari 支持）。
+    列出的文件第一次打开时会存到 iPad 本地，之后断网也能运行。
+    文件内容一变（网站更新），版本号就变，iPad 联网时会自动更新。
+    """
+    files = []
+    for root, _, names in os.walk(DIST):
+        for n in names:
+            rel = os.path.relpath(os.path.join(root, n), DIST).replace(os.sep, "/")
+            if rel.startswith("photos/") or rel in ("offline.appcache", ".nojekyll"):
+                continue
+            files.append(rel)
+    for e in entries:
+        if e.get("o"):
+            files += [e["m"], e["b"]]
+    files.sort()
+    h = hashlib.sha1()
+    for rel in files:
+        with open(os.path.join(DIST, rel), "rb") as fh:
+            h.update(rel.encode() + fh.read())
+    total = sum(_size(f) for f in files)
+    with open(os.path.join(DIST, "offline.appcache"), "w", encoding="utf-8") as fh:
+        fh.write("CACHE MANIFEST\n# version %s\n\nCACHE:\n" % h.hexdigest()[:16])
+        fh.write("\n".join(files))
+        fh.write("\n\nNETWORK:\n*\n")
+    report("离线缓存：%d 个文件，共 %.1f MB" % (len(files), total / 1048576.0))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fake", type=int, default=0, help="生成 N 张假图（离线调试）")
+    ap.add_argument("--offline-mb", type=float, default=22, help="离线图包大小上限（MB）")
     args = ap.parse_args()
 
     if os.path.isdir(DIST):
@@ -497,11 +562,14 @@ def main():
         styles[e["t"]["style"]] = styles.get(e["t"]["style"], 0) + 1
     report("风格分布：%s" % styles)
 
+    pick_offline(entries, args.offline_mb)
+
     os.makedirs(os.path.join(DIST, "data"), exist_ok=True)
     with open(os.path.join(DIST, "data", "photos.js"), "w", encoding="utf-8") as f:
         f.write("/* 自动生成，请勿手改 */\nvar PHOTOS = ")
         json.dump(entries, f, ensure_ascii=False, separators=(",", ":"))
         f.write(";\n")
+    write_appcache(entries)
     report("完成：%d 张图片 -> %s" % (len(entries), DIST))
     with open(os.path.join(ROOT, "build", "report.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(REPORT) + "\n")

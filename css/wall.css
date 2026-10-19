@@ -463,7 +463,7 @@ body.portrait .st-poster .p-day { font-size: 8rem; }
 /* ======================================================== 提示 / 夜间 / 空 */
 #toast {
   position: fixed; left: 50%; top: 1.6rem; z-index: 50;
-  width: 12rem; margin-left: -6rem; height: 2.4rem; line-height: 2.4rem; border-radius: 1.2rem;
+  width: 17rem; margin-left: -8.5rem; height: 2.4rem; line-height: 2.4rem; border-radius: 1.2rem;
   text-align: center; font-size: .9rem; font-weight: 600; letter-spacing: .06em;
   background: rgba(20,20,24,.55); color: #fff;
   opacity: 0; pointer-events: none;
