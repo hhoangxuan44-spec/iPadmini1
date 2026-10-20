@@ -23,6 +23,20 @@ import io.github.guangying.core.Lunar;
 public final class CalendarArt {
     private CalendarArt() {}
 
+    private static final Map<Integer, Lunar.Info> INFO_CACHE = new HashMap<>();
+
+    /** 农历信息有缓存：月历每次绘制要查三十几天，测量和绘制又各来几遍 */
+    static synchronized Lunar.Info info(int y, int m, int d) {
+        int key = (y * 13 + m) * 32 + d;
+        Lunar.Info i = INFO_CACHE.get(key);
+        if (i == null) {
+            if (INFO_CACHE.size() > 800) INFO_CACHE.clear();
+            i = Lunar.info(y, m, d);
+            INFO_CACHE.put(key, i);
+        }
+        return i;
+    }
+
     public static final String[] MONTH_EN = {"January", "February", "March", "April", "May", "June", "July",
             "August", "September", "October", "November", "December"};
     public static final String[] NUM_CN = {"一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"};
@@ -421,7 +435,7 @@ public final class CalendarArt {
 
     private static float lunarLine(Pen pen, Fonts f, Spec s, P p, float x, float top, float size) {
         Calendar n = s.now;
-        Lunar.Info info = Lunar.info(n.get(Calendar.YEAR), n.get(Calendar.MONTH) + 1, n.get(Calendar.DAY_OF_MONTH));
+        Lunar.Info info = info(n.get(Calendar.YEAR), n.get(Calendar.MONTH) + 1, n.get(Calendar.DAY_OF_MONTH));
         Lunar.Day l = info.lunar;
         Typeface tf = p.serifGrid ? f.serif(400) : f.sans(400);
         float lh = 1.3f;
@@ -562,7 +576,7 @@ public final class CalendarArt {
             boolean isToday = thisMonth && d == today;
             boolean weekend = col == 0 || col == 6;
             float a = isToday ? 1f : weekend ? 0.62f : 1f;
-            Lunar.Info info = Lunar.info(yr, m + 1, d);
+            Lunar.Info info = info(yr, m + 1, d);
             boolean fest = !info.festivals.isEmpty();
             if (isToday && pen.c != null) {
                 Paint pt = pen.paint();
@@ -624,7 +638,7 @@ public final class CalendarArt {
             if (isToday) pen.noShadow(); else shadowFor(pen, p, L);
             pen.digits(String.valueOf(d.get(Calendar.DAY_OF_MONTH)), cx, top, box, numFace(f, p, isToday ? 600 : 500), 1.25f,
                     isToday ? L.onAccent() : ink, a, 0, Pen.CENTER);
-            Lunar.Info info = Lunar.info(d.get(Calendar.YEAR), d.get(Calendar.MONTH) + 1, d.get(Calendar.DAY_OF_MONTH));
+            Lunar.Info info = info(d.get(Calendar.YEAR), d.get(Calendar.MONTH) + 1, d.get(Calendar.DAY_OF_MONTH));
             boolean fest = !info.festivals.isEmpty();
             String sub = fest ? (FEST_SHORT.containsKey(info.festivals.get(0)) ? FEST_SHORT.get(info.festivals.get(0)) : info.festivals.get(0))
                     : info.lunar.day == 1 ? info.lunar.monthName : info.lunar.dayName;

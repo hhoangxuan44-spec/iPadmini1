@@ -46,14 +46,24 @@ public abstract class ThemedWidget extends AppWidgetProvider {
     }
 
     @Override
-    public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-        Look look = Widgets.look(ctx);
-        for (int id : ids) update(ctx, mgr, id, kind(), look);
+    public void onUpdate(final Context ctx, final AppWidgetManager mgr, final int[] ids) {
+        Widgets.async(ctx, goAsync(), new Runnable() {
+            @Override
+            public void run() {
+                Look look = Widgets.look(ctx);
+                for (int id : ids) update(ctx, mgr, id, kind(), look);
+            }
+        });
     }
 
     @Override
-    public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle newOptions) {
-        update(ctx, mgr, id, kind(), Widgets.look(ctx));
+    public void onAppWidgetOptionsChanged(final Context ctx, final AppWidgetManager mgr, final int id, Bundle newOptions) {
+        Widgets.async(ctx, goAsync(), new Runnable() {
+            @Override
+            public void run() {
+                update(ctx, mgr, id, kind(), Widgets.look(ctx));
+            }
+        });
     }
 
     @Override

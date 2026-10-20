@@ -100,6 +100,24 @@ public class MainActivity extends Activity implements Wall.Listener {
         side.setOrientation(LinearLayout.VERTICAL);
         side.setPadding(wide ? px(36) : 0, wide ? 0 : px(24), 0, px(24));
 
+        final String crash = CrashLog.read(this);
+        if (!crash.isEmpty()) {
+            TextView ct = text("上次出错的记录（点这里复制，发给我就能修）：\n\n" + crash.substring(0, Math.min(crash.length(), 1500)), 11, 0xFFFFB4A8);
+            ct.setPadding(px(12), px(10), px(12), px(10));
+            GradientDrawable cb = new GradientDrawable();
+            cb.setCornerRadius(px(10));
+            cb.setColor(0xFF2A1512);
+            ct.setBackground(cb);
+            ct.setOnClickListener(v -> {
+                android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", crash));
+                CrashLog.clear(this);
+                Toast.makeText(this, "已复制，记录已清除", Toast.LENGTH_SHORT).show();
+                ct.setVisibility(View.GONE);
+            });
+            side.addView(ct);
+            side.addView(gap(14));
+        }
         TextView title = text("光影月历", 34, Color.WHITE);
         title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         side.addView(title);

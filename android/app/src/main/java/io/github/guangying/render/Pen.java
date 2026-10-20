@@ -53,8 +53,15 @@ public final class Pen {
         return p;
     }
 
+    private static final ThreadLocal<Paint> MEASURE = new ThreadLocal<Paint>() {
+        @Override
+        protected Paint initialValue() {
+            return new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG | Paint.LINEAR_TEXT_FLAG);
+        }
+    };
+
     public float width(String s, Typeface tf, float size, float spacing) {
-        Paint p = paint();
+        Paint p = MEASURE.get();
         p.setTypeface(tf);
         p.setTextSize(100f);               // 用大字号测量再换算：字号太小时系统会把字宽取整
         p.setLetterSpacing(spacing);
@@ -114,7 +121,7 @@ public final class Pen {
     List<String> wrap(String s, float width, Typeface tf, float size, float spacing, int maxLines) {
         List<String> out = new ArrayList<>();
         if (s == null || s.isEmpty()) return out;
-        // 切成「单位」：连续的英文数字算一个，其他每个字一个
+        // 切成「单位」：连续的英文数字算一个，其他每个字一个；每个单位只量一次宽度（字距是逐字相加的）
         List<String> units = new ArrayList<>();
         for (int i = 0; i < s.length(); ) {
             int j = i + 1;
@@ -122,15 +129,20 @@ public final class Pen {
             units.add(s.substring(i, j));
             i = j;
         }
+        float[] uw = new float[units.size()];
+        for (int i = 0; i < uw.length; i++) uw[i] = width(units.get(i), tf, size, spacing);
         StringBuilder line = new StringBuilder();
-        for (String un : units) {
-            String t = line + un;
-            if (line.length() > 0 && width(t, tf, size, spacing) > width && !noStart(un.charAt(0))) {
+        float lw = 0;
+        for (int i = 0; i < uw.length; i++) {
+            String un = units.get(i);
+            if (line.length() > 0 && lw + uw[i] > width && !noStart(un.charAt(0))) {
                 out.add(line.toString());
                 line.setLength(0);
+                lw = 0;
                 if (un.equals(" ")) continue;
             }
             line.append(un);
+            lw += uw[i];
         }
         if (line.length() > 0) out.add(line.toString());
         if (maxLines > 0 && out.size() > maxLines) {

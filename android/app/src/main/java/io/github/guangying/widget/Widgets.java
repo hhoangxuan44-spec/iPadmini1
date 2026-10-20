@@ -122,8 +122,41 @@ public final class Widgets {
         return new int[]{Math.max(1, Math.round(w)), Math.max(1, Math.round(h))};
     }
 
-    /** 刷新全部月历、画意组件 */
-    public static void refreshAll(Context ctx) {
+    private static final java.util.concurrent.ExecutorService EXEC = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    /** 后台刷新全部组件（绘制比较费时，不能占用主线程） */
+    public static void refreshAll(final Context ctx) {
+        final Context app = ctx.getApplicationContext();
+        EXEC.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    refreshNow(app);
+                } catch (Throwable t) {
+                    io.github.guangying.CrashLog.note(app, "刷新组件", t);
+                }
+            }
+        });
+    }
+
+    /** 在后台线程里执行一段组件相关的工作，完成后结束广播（供 onUpdate 使用） */
+    static void async(final Context ctx, final android.content.BroadcastReceiver.PendingResult pr, final Runnable work) {
+        EXEC.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    work.run();
+                } catch (Throwable t) {
+                    io.github.guangying.CrashLog.note(ctx, "绘制组件", t);
+                } finally {
+                    if (pr != null) pr.finish();
+                }
+            }
+        });
+    }
+
+    /** 刷新全部月历、画意等组件（在后台线程调用） */
+    static void refreshNow(Context ctx) {
         Context app = ctx.getApplicationContext();
         AppWidgetManager mgr = AppWidgetManager.getInstance(app);
         Look look = null;
@@ -132,7 +165,13 @@ public final class Widgets {
             int[] ids = mgr.getAppWidgetIds(new ComponentName(app, cls));
             if (ids.length == 0) continue;
             if (look == null) look = look(app);
-            for (int id : ids) ThemedWidget.update(app, mgr, id, kind, look);
+            for (int id : ids) {
+                try {
+                    ThemedWidget.update(app, mgr, id, kind, look);
+                } catch (Throwable t) {
+                    io.github.guangying.CrashLog.note(app, "组件 " + kind + " 更新", t);
+                }
+            }
         }
     }
 }
