@@ -115,11 +115,12 @@ public class SmokeTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void refreshingAllWidgetsDoesNotThrow() {
         AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
         ShadowAppWidgetManager sm = shadowOf(mgr);
         int[] ids = new int[Widgets.PROVIDERS.length];
-        for (int i = 0; i < ids.length; i++) ids[i] = sm.createWidget(Widgets.PROVIDERS[i], R.layout.widget_image);
+        for (int i = 0; i < ids.length; i++) ids[i] = sm.createWidget((Class<? extends android.appwidget.AppWidgetProvider>) Widgets.PROVIDERS[i], R.layout.widget_image);
         Widgets.refreshNow(ctx);
         for (int id : ids) assertNotNull("组件 " + id + " 没有刷新出内容", sm.getViewFor(id));
         assertTrue("刷新组件时记录到了错误：\n" + CrashLog.read(ctx), CrashLog.read(ctx).isEmpty());
