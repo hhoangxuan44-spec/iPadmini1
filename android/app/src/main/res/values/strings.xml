@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">光影月历</string>
-    <string name="wall_desc">名画与风景轮播，配一张随图变化的月历</string>
+    <string name="wall_desc">名画与风景轮播；日历在桌面组件里，样式随图变化</string>
+    <string name="widget_calendar_desc">时钟、农历和本月日历，样式随壁纸变化，点一下换下一张</string>
+    <string name="widget_story_desc">这张壁纸的标题、诗句和描述，样式随壁纸变化</string>
 </resources>

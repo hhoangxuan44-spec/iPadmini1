@@ -158,8 +158,25 @@ def assign(items):
     for it in photos:
         it.setdefault("style", "glass")
 
+    _quiet_map(items)
     for it in items:
         it["theme"] = _theme_for(it)
+
+
+def _quiet_map(items):
+    """
+    每个区域的「安静程度」与亮度，供安卓桌面组件使用：组件放在哪里由用户决定，
+    壁纸则优先选择该位置画面安静的图片，并按该处亮度决定文字深浅。
+    q[区域] = [繁忙度百分位（0 最安静, 99 最繁忙）, 亮度 0-255]
+    """
+    regions = ("tl", "tr", "bl", "br", "l", "r", "b")
+    for r in regions:
+        busy = sorted(it["feat"]["regions"][r]["edge"] + it["feat"]["regions"][r]["std"] * 0.15 for it in items)
+        for it in items:
+            f = it["feat"]["regions"][r]
+            v = f["edge"] + f["std"] * 0.15
+            pct = int(100.0 * sum(1 for b in busy if b < v) / max(1, len(busy)))
+            it.setdefault("q", {})[r] = [min(pct, 99), int(round(f["lum"]))]
 
 
 def _wall_color(dominant):

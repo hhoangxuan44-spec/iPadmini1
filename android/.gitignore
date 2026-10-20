@@ -2,3 +2,7 @@
 build/
 app/build/
 local.properties
+
+# render-test
+tools/render-test/target/
+tools/render-test/.m2/

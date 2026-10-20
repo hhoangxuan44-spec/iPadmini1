@@ -5,7 +5,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
-        android:name=".App"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
@@ -28,13 +27,12 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden" />
 
-        <!-- 动态壁纸：单独进程，暂停时不影响其他界面 -->
+        <!-- 动态壁纸：只放图片，日历在桌面组件里 -->
         <service
             android:name=".CalendarWallpaper"
             android:exported="true"
             android:label="@string/app_name"
-            android:permission="android.permission.BIND_WALLPAPER"
-            android:process=":wall">
+            android:permission="android.permission.BIND_WALLPAPER">
             <intent-filter>
                 <action android:name="android.service.wallpaper.WallpaperService" />
             </intent-filter>
@@ -55,9 +53,10 @@
             </intent-filter>
         </service>
 
-        <!-- 光影月历桌面组件 -->
+        <!-- 桌面组件：月历（样式随壁纸变化） -->
         <receiver
-            android:name=".widget.CalendarWidgetProvider"
+            android:name=".widget.CalendarWidget"
+            android:label="光影月历"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -66,6 +65,24 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/calendar_widget_info" />
         </receiver>
+
+        <!-- 桌面组件：画意（标题、诗句、描述） -->
+        <receiver
+            android:name=".widget.StoryWidget"
+            android:label="光影画意"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/story_widget_info" />
+        </receiver>
+
+        <!-- 点组件换下一张 -->
+        <receiver
+            android:name=".widget.ControlReceiver"
+            android:exported="false" />
 
         <!-- 定时器桌面组件 -->
         <receiver

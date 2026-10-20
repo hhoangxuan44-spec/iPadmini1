@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>local.render</groupId>
+  <artifactId>render-test</artifactId>
+  <version>1</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <robolectric.version>4.16</robolectric.version>
+    <android.compile.version>14-robolectric-10818077</android.compile.version>
+    <android.all.version>14-robolectric-10818077-i7</android.all.version>
+    <!-- 应用源码根目录 -->
+    <app.src>${project.basedir}/../../app/src/main/java</app.src>
+    <!-- ant 风格 pattern；默认排除 widget/** 与 MainActivity；可 -Dapp.include=... -->
+    <app.include>**/*.java</app.include>
+    <!-- 额外排除(单个 pattern)，例: -Dapp.exclude.extra=**/FullActivity.java -->
+    <app.exclude.extra>**/__none__</app.exclude.extra>
+    <render.out>/tmp/render-out</render.out>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>junit</groupId><artifactId>junit</artifactId><version>4.13.2</version><scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.robolectric</groupId><artifactId>robolectric</artifactId><version>${robolectric.version}</version><scope>provided</scope>
+      <exclusions>
+        <exclusion><groupId>androidx.test</groupId><artifactId>monitor</artifactId></exclusion>
+        <exclusion><groupId>androidx.test.espresso</groupId><artifactId>espresso-idling-resource</artifactId></exclusion>
+      </exclusions>
+    </dependency>
+    <!-- 仅用于编译 app 源码时提供 android.* API -->
+    <dependency>
+      <groupId>org.robolectric</groupId><artifactId>android-all</artifactId><version>${android.compile.version}</version><scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.0</version>
+        <executions><execution>
+          <id>app-src</id><phase>generate-sources</phase><goals><goal>add-source</goal></goals>
+          <configuration><sources><source>${app.src}</source></sources></configuration>
+        </execution>
+        <!-- androidx.test 桩类(见 README) -->
+        <execution>
+          <id>stubs</id><phase>generate-test-sources</phase><goals><goal>add-test-source</goal></goals>
+          <configuration><sources><source>${project.basedir}/src/stubs/java</source></sources></configuration>
+        </execution></executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.13.0</version>
+        <configuration>
+          <release>17</release>
+          <includes><include>${app.include}</include></includes>
+          <excludes>
+            <exclude>**/widget/**</exclude>
+            <exclude>**/MainActivity.java</exclude>
+            <exclude>${app.exclude.extra}</exclude>
+          </excludes>
+        </configuration>
+        <executions><execution>
+          <id>default-testCompile</id>
+          <configuration>
+            <!-- 测试源码不受 app 过滤影响 -->
+            <includes><include>**/*.java</include></includes>
+            <excludes combine.self="override"/>
+          </configuration>
+        </execution></executions>
+      </plugin>
+      <plugin>
+        <!-- 把运行时用的 instrumented android-all 拷到 target/android-all，让 Robolectric 离线使用 -->
+        <groupId>org.apache.maven.plugins</groupId><artifactId>maven-dependency-plugin</artifactId><version>3.8.1</version>
+        <executions><execution>
+          <id>android-all-runtime</id><phase>process-test-resources</phase><goals><goal>copy</goal></goals>
+          <configuration><artifactItems><artifactItem>
+            <groupId>org.robolectric</groupId><artifactId>android-all-instrumented</artifactId>
+            <version>${android.all.version}</version><outputDirectory>${project.build.directory}/android-all</outputDirectory>
+          </artifactItem></artifactItems></configuration>
+        </execution></executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.2</version>
+        <configuration>
+          <argLine>-Xmx1g -Djava.awt.headless=true</argLine>
+          <systemPropertyVariables>
+            <render.out>${render.out}</render.out>
+            <robolectric.offline>true</robolectric.offline>
+            <robolectric.dependency.dir>${project.build.directory}/android-all</robolectric.dependency.dir>
+            <cjk.font>${cjk.font}</cjk.font>
+          </systemPropertyVariables>
+          <trimStackTrace>false</trimStackTrace>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

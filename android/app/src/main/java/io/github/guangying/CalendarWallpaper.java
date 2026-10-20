@@ -1,24 +1,30 @@
 package io.github.guangying;
 
-import android.app.Presentation;
-import android.app.WallpaperManager;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
-import android.hardware.display.DisplayManager;
-import android.hardware.display.VirtualDisplay;
-import android.os.Bundle;
-import android.os.SystemClock;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.wallpaper.WallpaperService;
-import android.util.Log;
 import android.view.SurfaceHolder;
-import android.webkit.WebView;
+
+import java.io.File;
+import java.util.Calendar;
+import java.util.List;
+
+import io.github.guangying.data.Library;
+import io.github.guangying.data.Photo;
+import io.github.guangying.data.Prefs;
+import io.github.guangying.render.WallArt;
+import io.github.guangying.widget.Widgets;
 
 /**
- * 动态壁纸。
- *
- * 壁纸服务本身没法直接放 WebView，所以建一块只属于本 App 的虚拟屏幕，输出到壁纸的画面上，
- * 再在这块虚拟屏幕上显示月历网页。
+ * 动态壁纸：只负责图片——定时换图、交叉淡入淡出。日历和说明在上层的桌面组件里，
+ * 样式随当前图片变化（见 widget 包）。
  */
 public class CalendarWallpaper extends WallpaperService {
 
@@ -27,141 +33,229 @@ public class CalendarWallpaper extends WallpaperService {
         return new WallEngine();
     }
 
-    private class WallEngine extends Engine {
-        private VirtualDisplay display;
-        private Presentation presentation;
-        private WebView web;
+    private class WallEngine extends Engine implements Wall.Listener {
+        private static final int FADE_MS = 1500, FRAME_MS = 33;
+        private final Handler main = new Handler(Looper.getMainLooper());
+        private Prefs prefs;
         private int width, height;
-        private long lastTap;
+        private boolean visible;
+        private Bitmap cur, nxt;
+        private long fadeStart;
+        private String loadingId = "", curId = "";
+        private boolean registered;
+
+        private final Runnable advanceTask = new Runnable() {
+            @Override
+            public void run() {
+                Wall.advance(CalendarWallpaper.this);
+            }
+        };
+        private final Runnable frame = new Runnable() {
+            @Override
+            public void run() {
+                drawFrame();
+            }
+        };
+        private final BroadcastReceiver tick = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context c, Intent i) {
+                Widgets.refreshAll(CalendarWallpaper.this);
+                draw();                                  // 夜间调暗随时间变化
+            }
+        };
 
         @Override
         public void onCreate(SurfaceHolder holder) {
             super.onCreate(holder);
-            setOffsetNotificationsEnabled(false);
+            setTouchEventsEnabled(false);
+            prefs = new Prefs(CalendarWallpaper.this);
+            Wall.listen(this);
+            if (Site.unmetered(CalendarWallpaper.this) && !Site.isDownloading()) {
+                Site.downloadAll(getApplicationContext(), new Site.Progress() {
+                    @Override
+                    public void update(int done, int total, boolean finished) {
+                    }
+                });
+            }
         }
 
         @Override
         public void onSurfaceChanged(SurfaceHolder holder, int format, int w, int h) {
             super.onSurfaceChanged(holder, format, w, h);
-            int dpi = getResources().getDisplayMetrics().densityDpi;
-            if (display == null) {
-                start(holder, w, h);
+            if (w != width || h != height) {
+                width = w;
+                height = h;
+                cur = nxt = null;
+                curId = loadingId = "";
+                showCurrent(false);
             } else {
-                // 横竖屏切换：虚拟屏幕跟着改尺寸，网页会收到 resize 重新排版
-                if (w != width || h != height) display.resize(w, h, dpi);
-                display.setSurface(holder.getSurface());
-            }
-            width = w;
-            height = h;
-        }
-
-        private void start(SurfaceHolder holder, int w, int h) {
-            DisplayManager dm = (DisplayManager) getSystemService(DISPLAY_SERVICE);
-            int dpi = getResources().getDisplayMetrics().densityDpi;
-            try {
-                display = dm.createVirtualDisplay("guangying-wallpaper", w, h, dpi, holder.getSurface(), 0);
-                presentation = new Presentation(CalendarWallpaper.this, display.getDisplay());
-                web = Site.newWebView(presentation.getContext(), this::rebuild);
-                presentation.setContentView(web);
-                presentation.show();
-                // 上面让开状态栏，下面让开导航条和桌面 Dock
-                int top = Site.systemDimen(CalendarWallpaper.this, "status_bar_height");
-                int bottom = Site.systemDimen(CalendarWallpaper.this, "navigation_bar_height")
-                        + Math.round(96 * getResources().getDisplayMetrics().density);
-                web.loadUrl(Site.url(CalendarWallpaper.this, "wall", top, bottom));
-                if (!isVisible()) pause();
-            } catch (RuntimeException e) {
-                Log.e("Guangying", "无法创建壁纸画面", e);
-                stop();
-                drawMessage(holder, "这台设备暂时无法显示动态壁纸，请改用「全屏摆件模式」");
+                draw();
             }
         }
 
-        private void rebuild() {
-            stop();
-            SurfaceHolder holder = getSurfaceHolder();
-            if (holder.getSurface() != null && holder.getSurface().isValid() && width > 0) {
-                start(holder, width, height);
-            }
-        }
-
-        private void stop() {
-            if (presentation != null) {
-                try {
-                    presentation.dismiss();
-                } catch (RuntimeException ignored) {
+        @Override
+        public void onVisibilityChanged(boolean v) {
+            super.onVisibilityChanged(v);
+            visible = v;
+            main.removeCallbacks(advanceTask);
+            if (v) {
+                if (!registered) {
+                    registerReceiver(tick, new IntentFilter(Intent.ACTION_TIME_TICK));
+                    registered = true;
                 }
-                presentation = null;
-            }
-            if (web != null) {
-                web.destroy();
-                web = null;
-            }
-            if (display != null) {
-                display.release();
-                display = null;
+                Widgets.refreshAll(CalendarWallpaper.this);
+                showCurrent(false);
+                scheduleAdvance();
+                draw();
+            } else if (registered) {
+                unregisterReceiver(tick);
+                registered = false;
             }
         }
 
-        private void drawMessage(SurfaceHolder holder, String text) {
+        /** 过了切换间隔就换一张，否则等到时间再换 */
+        private void scheduleAdvance() {
+            long interval = prefs.intervalMinutes() * 60000L;
+            long left = interval - (System.currentTimeMillis() - prefs.shownAt());
+            main.removeCallbacks(advanceTask);
+            main.postDelayed(advanceTask, Math.max(left, 500));
+        }
+
+        @Override
+        public void onPhoto(Photo p) {
+            scheduleAdvance();
+            if (visible || cur == null) load(p, true);
+        }
+
+        /** 显示当前图片（没有就让总控选一张） */
+        private void showCurrent(final boolean animate) {
+            if (width == 0) return;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    final Photo p = Wall.current(CalendarWallpaper.this);
+                    main.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (p == null) Wall.advance(CalendarWallpaper.this);
+                            else if (!p.id.equals(curId)) load(p, animate);
+                        }
+                    });
+                }
+            }, "guangying-show").start();
+        }
+
+        private void load(final Photo p, final boolean animate) {
+            if (width == 0 || p.id.equals(loadingId) || p.id.equals(curId)) return;
+            loadingId = p.id;
+            final int w = width, h = height;
+            final String pos = prefs.position();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Context ctx = CalendarWallpaper.this;
+                    Bitmap frame = null;
+                    if (Site.ensure(ctx, p.large)) {
+                        Bitmap full = WallArt.decode(Library.file(ctx, p.large), w, h);
+                        Bitmap blur = null;
+                        if (p.style.equals("gallery") && !p.blur.isEmpty() && Site.ensure(ctx, p.blur)) {
+                            blur = WallArt.decode(Library.file(ctx, p.blur), 64, 64);
+                        }
+                        if (full != null) frame = WallArt.compose(full, blur, p, pos, w, h);
+                    }
+                    final Bitmap result = frame;
+                    main.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (!p.id.equals(loadingId) || w != width || h != height) return;
+                            loadingId = "";
+                            if (result == null) {                 // 下载不了：一分钟后再试，试不成就换别的
+                                main.postDelayed(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        Wall.advance(CalendarWallpaper.this);
+                                    }
+                                }, 60000);
+                                return;
+                            }
+                            curId = p.id;
+                            if (cur == null || !animate || !visible) {
+                                cur = result;
+                                nxt = null;
+                                draw();
+                            } else {
+                                nxt = result;
+                                fadeStart = System.currentTimeMillis();
+                                drawFrame();
+                            }
+                        }
+                    });
+                }
+            }, "guangying-load").start();
+        }
+
+        private void drawFrame() {
+            main.removeCallbacks(frame);
+            boolean more = draw();
+            if (more) main.postDelayed(frame, FRAME_MS);
+        }
+
+        /** 画一帧；返回淡入淡出是否还没结束 */
+        private boolean draw() {
+            SurfaceHolder holder = getSurfaceHolder();
             Canvas c = null;
+            boolean fading = false;
             try {
                 c = holder.lockCanvas();
-                if (c == null) return;
-                c.drawColor(Color.BLACK);
-                Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-                p.setColor(0xFF999999);
-                p.setTextSize(18 * getResources().getDisplayMetrics().density);
-                p.setTextAlign(Paint.Align.CENTER);
-                c.drawText(text, c.getWidth() / 2f, c.getHeight() / 2f, p);
+                if (c == null) return false;
+                c.drawColor(0xFF000000);
+                if (cur != null) c.drawBitmap(cur, 0, 0, null);
+                if (nxt != null) {
+                    float t = Math.min(1f, (System.currentTimeMillis() - fadeStart) / (float) FADE_MS);
+                    float e = t * t * (3 - 2 * t);
+                    Paint p = new Paint();
+                    p.setAlpha(Math.round(255 * e));
+                    c.drawBitmap(nxt, 0, 0, p);
+                    fading = t < 1f;
+                }
+                if (night()) {
+                    Paint d = new Paint();
+                    d.setColor(0x66000000);
+                    c.drawRect(0, 0, c.getWidth(), c.getHeight(), d);
+                }
             } finally {
                 if (c != null) holder.unlockCanvasAndPost(c);
             }
-        }
-
-        private void pause() {
-            if (web == null) return;
-            Site.js(web, "WallApp.pause()");
-            web.onPause();
-        }
-
-        @Override
-        public void onVisibilityChanged(boolean visible) {
-            super.onVisibilityChanged(visible);
-            if (web == null) return;
-            // 被应用挡住或熄屏时暂停；回到桌面时继续，离上次换图超过 5 分钟就马上换一张
-            if (visible) {
-                web.onResume();
-                Site.js(web, "WallApp.resume()");
-            } else {
-                pause();
+            if (nxt != null && !fading) {
+                cur = nxt;
+                nxt = null;
             }
+            return fading;
         }
 
-        @Override
-        public Bundle onCommand(String action, int x, int y, int z, Bundle extras, boolean resultRequested) {
-            // 在桌面空白处双击：换下一张（取决于桌面 App 是否转发点击）
-            if (WallpaperManager.COMMAND_TAP.equals(action)) {
-                long now = SystemClock.uptimeMillis();
-                if (now - lastTap < 400) {
-                    Site.js(web, "WallApp.next()");
-                    lastTap = 0;
-                } else {
-                    lastTap = now;
-                }
-            }
-            return null;
+        private boolean night() {
+            if (!prefs.nightDim()) return false;
+            int hr = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            return hr >= 23 || hr < 7;
         }
 
         @Override
         public void onSurfaceDestroyed(SurfaceHolder holder) {
-            stop();
+            main.removeCallbacksAndMessages(null);
+            cur = nxt = null;
+            curId = loadingId = "";
+            width = height = 0;
             super.onSurfaceDestroyed(holder);
         }
 
         @Override
         public void onDestroy() {
-            stop();
+            main.removeCallbacksAndMessages(null);
+            Wall.unlisten(this);
+            if (registered) {
+                unregisterReceiver(tick);
+                registered = false;
+            }
             super.onDestroy();
         }
     }

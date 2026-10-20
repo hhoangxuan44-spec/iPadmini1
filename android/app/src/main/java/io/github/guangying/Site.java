@@ -40,28 +40,28 @@ import java.util.regex.Pattern;
  * 图片和字体只要存过就直接用本地文件。所以联网用过一次之后，断网也能完整运行，
  * 网站更新后 App 也会自动用上新版本。
  */
-final class Site {
-    static final String BASE = "https://hhoangxuan44-spec.github.io/iPadmini1/";
+public final class Site {
+    public static final String BASE = "https://hhoangxuan44-spec.github.io/iPadmini1/";
     private static final String TAG = "Guangying";
     private static final Pattern IMAGE = Pattern.compile("\"[lb]\":\"(photos/[^\"]+)\"");
 
     private Site() {}
 
     /** 打开月历的网址。insetTop / insetBottom 是要避开的状态栏与 Dock（像素）。 */
-    static String url(Context ctx, String mode, int insetTop, int insetBottom) {
+    public static String url(Context ctx, String mode, int insetTop, int insetBottom) {
         float d = ctx.getResources().getDisplayMetrics().density;
         return BASE + "index.html?app=" + mode
                 + "&it=" + Math.round(insetTop / d) + "&ib=" + Math.round(insetBottom / d);
     }
 
-    static int systemDimen(Context ctx, String name) {
+    public static int systemDimen(Context ctx, String name) {
         Resources r = ctx.getResources();
         int id = r.getIdentifier(name, "dimen", "android");
         return id > 0 ? r.getDimensionPixelSize(id) : 0;
     }
 
     /** 网页出问题（渲染进程被系统回收）时调用 onGone，由调用方重建 WebView。 */
-    static WebView newWebView(Context ctx, final Runnable onGone) {
+    public static WebView newWebView(Context ctx, final Runnable onGone) {
         final Context app = ctx.getApplicationContext();
         WebView w = new WebView(ctx);
         WebSettings s = w.getSettings();
@@ -91,13 +91,13 @@ final class Site {
         return w;
     }
 
-    static void js(WebView w, String code) {
+    public static void js(WebView w, String code) {
         if (w != null) w.evaluateJavascript("window.WallApp && " + code, null);
     }
 
     // ------------------------------------------------------------ 缓存
 
-    static File root(Context ctx) {
+    public static File root(Context ctx) {
         return new File(ctx.getFilesDir(), "site");
     }
 
@@ -165,7 +165,7 @@ final class Site {
         return new WebResourceResponse(mime, text ? "utf-8" : null, in);
     }
 
-    static byte[] download(String url, int timeout) {
+    public static byte[] download(String url, int timeout) {
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL(url).openConnection();
@@ -187,6 +187,16 @@ final class Site {
         }
     }
 
+    /** 确保某个文件在本地：没有就下载。返回是否可用。 */
+    public static boolean ensure(Context ctx, String path) {
+        File f = new File(root(ctx), path);
+        if (f.isFile()) return true;
+        byte[] data = download(BASE + path, 15000);
+        if (data == null) return false;
+        save(f, data);
+        return f.isFile();
+    }
+
     /** 先写临时文件再改名：壁纸和主界面在两个进程里，可能同时写同一个文件。 */
     private static void save(File f, byte[] data) {
         File dir = f.getParentFile();
@@ -204,7 +214,7 @@ final class Site {
     // ------------------------------------------------------------ 离线下载全部图片
 
     /** 网站上所有图片（大图 + 玻璃效果用的模糊小图）。 */
-    static List<String> imageList(Context ctx) {
+    public static List<String> imageList(Context ctx) {
         File data = new File(root(ctx), "data/photos.js");
         byte[] fresh = download(BASE + "data/photos.js", 8000);
         if (fresh != null) save(data, fresh);
@@ -227,24 +237,24 @@ final class Site {
         return out;
     }
 
-    static int countCached(Context ctx, List<String> list) {
+    public static int countCached(Context ctx, List<String> list) {
         int n = 0;
         for (String p : list) if (new File(root(ctx), p).isFile()) n++;
         return n;
     }
 
-    interface Progress {
+    public interface Progress {
         void update(int done, int total, boolean finished);
     }
 
     private static volatile boolean downloading = false;
 
-    static boolean isDownloading() {
+    public static boolean isDownloading() {
         return downloading;
     }
 
     /** 在后台线程里下载所有还没存过的图片。 */
-    static void downloadAll(final Context ctx, final Progress cb) {
+    public static void downloadAll(final Context ctx, final Progress cb) {
         if (downloading) return;
         downloading = true;
         new Thread(new Runnable() {
@@ -274,7 +284,14 @@ final class Site {
         }, "guangying-download").start();
     }
 
-    static boolean unmetered(Context ctx) {
+    public static boolean online(Context ctx) {
+        ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return true;
+        NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
+        return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+    }
+
+    public static boolean unmetered(Context ctx) {
         ConnectivityManager cm = (ConnectivityManager) ctx.getSystemService(Context.CONNECTIVITY_SERVICE);
         if (cm == null) return false;
         NetworkCapabilities nc = cm.getNetworkCapabilities(cm.getActiveNetwork());
