@@ -15,13 +15,13 @@
         android:scaleType="centerCrop"
         android:visibility="gone" />
 
-    <View android:id="@+id/fill" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
-    <View android:id="@+id/tint" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
-    <View android:id="@+id/sheen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
-    <View android:id="@+id/tex" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/grain_tile" android:visibility="gone" />
-    <View android:id="@+id/scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
-    <View android:id="@+id/border" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
-    <View android:id="@+id/line" android:layout_width="match_parent" android:layout_height="3dp" android:layout_gravity="top" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/fill" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/tint" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/sheen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/tex" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/grain_tile" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/border" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <ImageView android:importantForAccessibility="no" android:scaleType="fitXY" android:id="@+id/line" android:layout_width="match_parent" android:layout_height="3dp" android:layout_gravity="top" android:visibility="gone" />
 
     <ImageView
         android:id="@+id/image"
