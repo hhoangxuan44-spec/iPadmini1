@@ -80,12 +80,13 @@ public class WidgetRenderTest {
             for (int[] s : sizes) {
                 Bitmap w = wall(s[0], s[1], 0xFF35486B, 0xFFB9603A);
                 CalendarArt.Spec spec = new CalendarArt.Spec(s[0], s[1], look, now);
+                spec.backdrop = Bitmap.createScaledBitmap(w, Math.max(2, s[0] / 24), Math.max(2, s[1] / 24), true);
                 spec.motto = new String[]{"知者不惑，仁者不忧，勇者不惧。", "《论语》"};
                 Bitmap cal = CalendarArt.render(f, spec);
                 new Canvas(w).drawBitmap(cal, 0, 0, null);
                 Png.save(w, "cal_" + d[0] + "_" + d[3] + "_" + s[0] + "x" + s[1]);
                 Bitmap w2 = wall(s[0], s[1], 0xFF35486B, 0xFFB9603A);
-                new Canvas(w2).drawBitmap(StoryArt.render(f, s[0], s[1], look), 0, 0, null);
+                new Canvas(w2).drawBitmap(StoryArt.render(f, s[0], s[1], look, Bitmap.createScaledBitmap(w2, Math.max(2, s[0] / 24), Math.max(2, s[1] / 24), true)), 0, 0, null);
                 Png.save(w2, "story_" + d[0] + "_" + d[3] + "_" + s[0] + "x" + s[1]);
             }
         }
@@ -109,9 +110,10 @@ public class WidgetRenderTest {
             if (i == 0) {
                 CalendarArt.Spec spec = new CalendarArt.Spec(sz[i][0], sz[i][1], look, now);
                 spec.motto = new String[]{"知者不惑，仁者不忧，勇者不惧。", "《论语》"};
+                spec.backdrop = Bitmap.createScaledBitmap(w, 22, 27, true);
                 art = CalendarArt.render(f, spec);
             } else {
-                art = StoryArt.render(f, sz[i][0], sz[i][1], look);
+                art = StoryArt.render(f, sz[i][0], sz[i][1], look, Bitmap.createScaledBitmap(w, 22, 15, true));
             }
             new Canvas(w).drawBitmap(art, 0, 0, null);
             try (java.io.FileOutputStream o = new java.io.FileOutputStream(new File(dir, names[i] + ".png"))) {

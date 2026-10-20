@@ -78,6 +78,10 @@ public final class Look {
         return hslToRgb(hsl[0], hsl[1], l);
     }
 
+    public static float rgbToHslL(int c) {
+        return rgbToHsl(c)[2];
+    }
+
     static float[] rgbToHsl(int c) {
         float r = Color.red(c) / 255f, g = Color.green(c) / 255f, b = Color.blue(c) / 255f;
         float max = Math.max(r, Math.max(g, b)), min = Math.min(r, Math.min(g, b));

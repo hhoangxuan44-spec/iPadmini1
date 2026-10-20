@@ -11,9 +11,9 @@ import io.github.guangying.data.Photo;
 public final class StoryArt {
     private StoryArt() {}
 
-    public static Bitmap render(Fonts f, int w, int h, Look look) {
+    public static Bitmap render(Fonts f, int w, int h, Look look, Bitmap backdrop) {
         Bitmap bm = Bitmap.createBitmap(Math.max(1, w), Math.max(1, h), Bitmap.Config.ARGB_8888);
-        draw(new Canvas(bm), f, w, h, look);
+        draw(new Canvas(bm), f, w, h, look, backdrop);
         return bm;
     }
 
@@ -107,7 +107,7 @@ public final class StoryArt {
         return cy - y;
     }
 
-    public static float draw(Canvas canvas, Fonts f, int w, int h, Look L) {
+    public static float draw(Canvas canvas, Fonts f, int w, int h, Look L, Bitmap backdrop) {
         CalendarArt.P p = params(L);
         float innerW = p.inner;
         // 描述尽量完整；组件太矮时才减少行数，保证字不会缩得太小
@@ -133,7 +133,9 @@ public final class StoryArt {
             base.setColor(0xF0FAF6EE);
             CalendarArt.rrect(canvas, u, x0, y0, cardW, cardH, p.radius, base);
         } else {
-            CalendarArt.paintCard(pen, new CalendarArt.Spec(w, h, L, java.util.Calendar.getInstance()), p, x0, y0, cardW, cardH);
+            CalendarArt.Spec spec = new CalendarArt.Spec(w, h, L, java.util.Calendar.getInstance());
+            spec.backdrop = backdrop;
+            CalendarArt.paintCard(pen, spec, p, x0, y0, cardW, cardH);
         }
         content(pen, f, L, p, x0 + p.padL, y0 + p.padT, innerW, lines);
         return u;

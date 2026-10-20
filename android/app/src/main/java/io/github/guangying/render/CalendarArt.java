@@ -46,6 +46,8 @@ public final class CalendarArt {
         public int viewYear, viewMonth;       // 月历显示的月份（月份从 0 起）
         public String[] motto;                // {句子, 出处}，可为 null
         public boolean use24h = true;
+        /** 组件背后壁纸的模糊图（和组件位图同样大小的区域），玻璃风格用它做磨砂效果；可为 null */
+        public Bitmap backdrop;
 
         public Spec(int w, int h, Look look, Calendar now) {
             this.w = w;
@@ -94,6 +96,7 @@ public final class CalendarArt {
                 break;
             case "poster":
                 p.poster = true;
+                p.margin = 1.2f;
                 p.inner = 26f;
                 p.grid = 18.6f;
                 p.head = false;
@@ -274,7 +277,7 @@ public final class CalendarArt {
         float cursor = 0;
         if (poem) {
             float hc = clockBlock(pen, f, s, p, x, 0, w, true);
-            float hm = monthBlock(pen, f, s, p, x, 0, p.grid);
+            float hm = monthBlock(new Pen(null, 1), f, s, p, x, 0, p.grid);
             float hp = h < 0 ? poemHeight(pen, f, s, p) : Math.max(4f, h - hc - hm - p.gap - 1.9f);
             poemBlock(pen, f, s, p, x, y, w, hp);
             cursor = hp + 1.0f;
@@ -601,14 +604,33 @@ public final class CalendarArt {
         switch (p.card) {
             case GLASS: {
                 cardShadow(pen, x, y, w, h, p.radius, 1.6f, 0.9f, 0x73000000);
-                Paint base = pen.paint();
-                base.setColor(L.light ? 0x6B14161E : 0x8CFFFFFF);
-                rrect(c, u, x, y, w, h, p.radius, base);
-                Paint tint = pen.paint();
-                tint.setShader(new LinearGradient(x * u, y * u, (x + w) * u, (y + h) * u,
-                        L.light ? new int[]{0x29FFFFFF, 0x2E14141A, 0x4214141A} : new int[]{0x8CFFFFFF, 0x52FFFFFF, 0x52FFFFFF},
-                        new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
-                rrect(c, u, x, y, w, h, p.radius, tint);
+                Path clip = new Path();
+                clip.addRoundRect(new RectF(x * u, y * u, (x + w) * u, (y + h) * u), p.radius * u, p.radius * u, Path.Direction.CW);
+                c.save();
+                c.clipPath(clip);
+                if (s.backdrop != null) {
+                    // 磨砂玻璃：背后的壁纸（已模糊），提高一点饱和度
+                    Paint bp = pen.paint();
+                    bp.setFilterBitmap(true);
+                    android.graphics.ColorMatrix cm = new android.graphics.ColorMatrix();
+                    cm.setSaturation(1.45f);
+                    bp.setColorFilter(new android.graphics.ColorMatrixColorFilter(cm));
+                    c.drawBitmap(s.backdrop, null, new RectF(0, 0, c.getWidth(), c.getHeight()), bp);
+                    Paint tintP = pen.paint();
+                    tintP.setColor(L.light ? 0x40101218 : 0x66FFFFFF);
+                    c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, tintP);
+                } else {
+                    Paint base = pen.paint();
+                    base.setColor(L.light ? 0x9A16181F : 0xB8FFFFFF);
+                    c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, base);
+                }
+                Paint sheen = pen.paint();
+                sheen.setShader(new LinearGradient(x * u, y * u, (x + w) * u, (y + h) * u,
+                        L.light ? new int[]{0x38FFFFFF, 0x0AFFFFFF, 0x1F000000} : new int[]{0x66FFFFFF, 0x1AFFFFFF, 0x14FFFFFF},
+                        new float[]{0f, 0.5f, 1f}, Shader.TileMode.CLAMP));
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, sheen);
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, Texture.grain(0.09f, Math.max(1f, u * 0.07f)));
+                c.restore();
                 break;
             }
             case PAPER:
@@ -621,6 +643,16 @@ public final class CalendarArt {
                 sheen.setShader(new LinearGradient(x * u, y * u, (x + w) * u, (y + h) * u,
                         new int[]{0x59FFFFFF, 0x00FFFFFF, 0x0F785A32}, new float[]{0f, 0.4f, 1f}, Shader.TileMode.CLAMP));
                 rrect(c, u, x, y, w, h, p.radius, sheen);
+                c.save();
+                Path pclip = new Path();
+                pclip.addRoundRect(new RectF(x * u, y * u, (x + w) * u, (y + h) * u), p.radius * u, p.radius * u, Path.Direction.CW);
+                c.clipPath(pclip);
+                Paint vig = pen.paint();
+                vig.setShader(new RadialGradient((x + w / 2) * u, (y + h / 2) * u, Math.max(w, h) * 0.75f * u,
+                        0x00000000, 0x24785A32, Shader.TileMode.CLAMP));
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, vig);
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, Texture.grain(0.2f, Math.max(1f, u * 0.07f)));
+                c.restore();
                 if (p.card == RULED) {                    // 红色竖线格
                     Paint ln = pen.paint();
                     ln.setColor(0x38B23A2E);
@@ -638,8 +670,12 @@ public final class CalendarArt {
             }
             case BAND: {
                 Paint base = pen.paint();
-                base.setColor(Look.withAlpha(L.bg, 0.9f));
+                base.setShader(new LinearGradient(0, y * u, 0, (y + h) * u,
+                        new int[]{Look.withAlpha(Look.withLightness(L.bg, Math.min(1f, Look.rgbToHslL(L.bg) + 0.04f)), 0.94f),
+                                Look.withAlpha(Look.withLightness(L.bg, Math.max(0f, Look.rgbToHslL(L.bg) - 0.04f)), 0.94f)},
+                        null, Shader.TileMode.CLAMP));
                 c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, base);
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, Texture.grain(0.1f, Math.max(1f, u * 0.07f)));
                 Paint top = pen.paint();
                 top.setColor(L.accent);
                 c.drawRect(x * u, y * u, (x + w) * u, (y + 0.2f) * u, top);
@@ -647,9 +683,20 @@ public final class CalendarArt {
             }
             case PLAQUE: {
                 cardShadow(pen, x, y, w, h, p.radius, 1.6f, 0.8f, 0x73000000);
+                Path pq = new Path();
+                pq.addRoundRect(new RectF(x * u, y * u, (x + w) * u, (y + h) * u), p.radius * u, p.radius * u, Path.Direction.CW);
+                c.save();
+                c.clipPath(pq);
+                if (s.backdrop != null) {
+                    Paint bp = pen.paint();
+                    bp.setFilterBitmap(true);
+                    c.drawBitmap(s.backdrop, null, new RectF(0, 0, c.getWidth(), c.getHeight()), bp);
+                }
                 Paint base = pen.paint();
-                base.setColor(Look.withAlpha(L.bg, 0.66f));
-                rrect(c, u, x, y, w, h, p.radius, base);
+                base.setColor(Look.withAlpha(L.bg, s.backdrop != null ? 0.72f : 0.8f));
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, base);
+                c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, Texture.grain(0.1f, Math.max(1f, u * 0.07f)));
+                c.restore();
                 Paint bd = pen.paint();
                 bd.setStyle(Paint.Style.STROKE);
                 bd.setStrokeWidth(Math.max(1f, 0.07f * u));

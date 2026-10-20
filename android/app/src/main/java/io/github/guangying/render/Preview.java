@@ -19,7 +19,7 @@ public final class Preview {
     private Preview() {}
 
     /** 组件在预览里的位置（占整屏的比例）：{x, y, w, h}，依次为月历、画意 */
-    private static float[][] rects(String pos) {
+    public static float[][] rects(String pos) {
         switch (pos) {
             case "tr": return new float[][]{{.68f, .05f, .30f, .62f}, {.02f, .62f, .38f, .34f}};
             case "bl": return new float[][]{{.02f, .33f, .30f, .62f}, {.62f, .05f, .36f, .34f}};
@@ -54,7 +54,7 @@ public final class Preview {
         Canvas c = new Canvas(out);
         for (int kind = 0; kind < 2; kind++) {
             int rw = Math.round(r[kind][2] * w), rh = Math.round(r[kind][3] * h);
-            Bitmap bm = Widgets.render(ctx, kind, look, rw, rh);
+            Bitmap bm = Widgets.render(ctx, kind, look, rw, rh, Widgets.backdrop(ctx, look, kind));
             c.drawBitmap(bm, Math.round(r[kind][0] * w), Math.round(r[kind][1] * h), null);
         }
         return out;
