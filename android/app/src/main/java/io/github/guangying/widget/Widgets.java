@@ -87,7 +87,8 @@ public final class Widgets {
         float dw = blur.getWidth() * sc, dh = blur.getHeight() * sc;
         android.graphics.Paint pt = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
         c.drawBitmap(blur, null, new android.graphics.RectF((rw - dw) / 2, (rh - dh) / 2, (rw + dw) / 2, (rh + dh) / 2), pt);
-        float[] r = io.github.guangying.render.Preview.rects(look.pos)[kind];
+        float[][] rects = io.github.guangying.render.Preview.rects(look.pos);
+        float[] r = rects[kind == STORY ? 1 : 0];      // 时钟、本周、一言等按月历的位置估计
         int x = Math.max(0, Math.round(r[0] * rw)), y = Math.max(0, Math.round(r[1] * rh));
         int w = Math.min(rw - x, Math.round(r[2] * rw)), h = Math.min(rh - y, Math.round(r[3] * rh));
         return Bitmap.createBitmap(ref, x, y, Math.max(1, w), Math.max(1, h));
