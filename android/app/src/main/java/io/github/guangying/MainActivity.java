@@ -32,6 +32,10 @@ import io.github.guangying.data.Photo;
 import io.github.guangying.data.Prefs;
 import io.github.guangying.render.Preview;
 import io.github.guangying.widget.CalendarWidget;
+import io.github.guangying.widget.ClockWidget;
+import io.github.guangying.widget.QuoteWidget;
+import io.github.guangying.widget.TimerWidgetProvider;
+import io.github.guangying.widget.WeekWidget;
 import io.github.guangying.widget.StoryWidget;
 import io.github.guangying.widget.Widgets;
 
@@ -105,12 +109,24 @@ public class MainActivity extends Activity implements Wall.Listener {
 
         side.addView(button("1  设为桌面动态壁纸", true, v -> setWallpaper()));
         side.addView(gap(10));
-        LinearLayout row = new LinearLayout(this);
-        row.addView(button("2  添加月历组件", false, v -> pin(CalendarWidget.class)), new LinearLayout.LayoutParams(0, -2, 1f));
-        row.addView(new View(this), new LinearLayout.LayoutParams(px(10), 1));
-        row.addView(button("添加画意组件", false, v -> pin(StoryWidget.class)), new LinearLayout.LayoutParams(0, -2, 1f));
-        side.addView(row);
-        side.addView(hint("月历组件有时钟、农历和本月日历；画意组件是这张图的标题、诗句和描述。也可以长按桌面空白处，在「组件」里找「光影月历」。点一下组件，壁纸换下一张。"));
+        side.addView(text("2  添加桌面组件", 15, Color.WHITE));
+        side.addView(gap(8));
+        Object[][] widgets = {{"月历", CalendarWidget.class}, {"画意", StoryWidget.class}, {"时钟", ClockWidget.class},
+                {"本周", WeekWidget.class}, {"一言", QuoteWidget.class}, {"定时器", TimerWidgetProvider.class}};
+        for (int r = 0; r < 2; r++) {
+            LinearLayout row = new LinearLayout(this);
+            for (int c = 0; c < 3; c++) {
+                final Object[] wd = widgets[r * 3 + c];
+                TextView b = button((String) wd[0], false, v -> pin((Class<?>) wd[1]));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+                if (c > 0) lp.leftMargin = px(8);
+                row.addView(b, lp);
+            }
+            LinearLayout.LayoutParams rl = new LinearLayout.LayoutParams(-1, -2);
+            rl.bottomMargin = px(8);
+            side.addView(row, rl);
+        }
+        side.addView(hint("月历、时钟、本周、一言、画意的样式都随壁纸变化；拉大组件时卡片跟着变宽变高。点一下组件，壁纸换下一张。定时器：点数字换时长，−5/+5 微调。如果这个桌面不支持一键添加，就长按桌面空白处 → 组件 → 光影月历。"));
 
         side.addView(text("3  日历组件放在桌面的哪里", 15, Color.WHITE));
         LinearLayout posRow = new LinearLayout(this);

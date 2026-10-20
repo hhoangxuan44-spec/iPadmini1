@@ -3,54 +3,80 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_bg"
-    android:orientation="vertical"
     android:gravity="center"
-    android:padding="16dp">
+    android:orientation="vertical"
+    android:padding="12dp">
 
     <TextView
+        android:id="@+id/timer_label"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="定时器"
+        android:text="定时器 · 点数字换时长"
         android:textColor="#8E8E93"
-        android:textSize="14sp"
-        android:layout_marginBottom="8dp" />
+        android:textSize="12sp" />
 
     <Chronometer
         android:id="@+id/timer_chronometer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
-        android:textSize="40sp"
-        android:textStyle="bold"
+        android:layout_marginTop="2dp"
         android:countDown="true"
-        android:format="%s" />
+        android:fontFamily="sans-serif-light"
+        android:format="%s"
+        android:padding="4dp"
+        android:textColor="#FFFFFF"
+        android:textSize="44sp" />
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginTop="16dp">
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btn_minus"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/btn_bg_dark"
+            android:gravity="center"
+            android:text="−5"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
 
         <ImageView
             android:id="@+id/btn_toggle"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:layout_marginStart="10dp"
             android:background="@drawable/btn_bg"
-            android:src="@android:drawable/ic_media_play"
+            android:contentDescription="开始或暂停"
+            android:padding="14dp"
             android:scaleType="centerInside"
-            android:padding="12dp"
+            android:src="@android:drawable/ic_media_play"
             android:tint="#000000" />
 
         <ImageView
             android:id="@+id/btn_reset"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="10dp"
             android:background="@drawable/btn_bg_dark"
-            android:src="@android:drawable/ic_menu_revert"
-            android:scaleType="centerInside"
+            android:contentDescription="重置"
             android:padding="12dp"
-            android:layout_marginLeft="16dp"
+            android:scaleType="centerInside"
+            android:src="@android:drawable/ic_menu_revert"
             android:tint="#FFFFFF" />
 
+        <TextView
+            android:id="@+id/btn_plus"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/btn_bg_dark"
+            android:gravity="center"
+            android:text="+5"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp" />
     </LinearLayout>
 </LinearLayout>

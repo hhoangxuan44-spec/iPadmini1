@@ -28,7 +28,9 @@ import io.github.guangying.render.StoryArt;
 public final class Widgets {
     private Widgets() {}
 
-    public static final int CALENDAR = 0, STORY = 1;
+    public static final int CALENDAR = 0, STORY = 1, CLOCK = 2, WEEK = 3, QUOTE = 4;
+    static final Class<?>[] PROVIDERS = {CalendarWidget.class, StoryWidget.class, ClockWidget.class, WeekWidget.class,
+            QuoteWidget.class};
     private static Fonts fonts;
 
     public static synchronized Fonts fonts(Context ctx) {
@@ -58,6 +60,8 @@ public final class Widgets {
         Calendar now = Calendar.getInstance();
         CalendarArt.Spec spec = new CalendarArt.Spec(w, h, look, now);
         spec.backdrop = backdrop;
+        spec.part = kind == CLOCK ? CalendarArt.CLOCK : kind == WEEK ? CalendarArt.WEEK : kind == QUOTE ? CalendarArt.QUOTE
+                : CalendarArt.FULL;
         spec.motto = Mottos.forDay(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH));
         return CalendarArt.render(f, spec);
     }
@@ -122,8 +126,8 @@ public final class Widgets {
         Context app = ctx.getApplicationContext();
         AppWidgetManager mgr = AppWidgetManager.getInstance(app);
         Look look = null;
-        for (int kind = 0; kind < 2; kind++) {
-            Class<?> cls = kind == CALENDAR ? CalendarWidget.class : StoryWidget.class;
+        for (int kind = 0; kind < PROVIDERS.length; kind++) {
+            Class<?> cls = PROVIDERS[kind];
             int[] ids = mgr.getAppWidgetIds(new ComponentName(app, cls));
             if (ids.length == 0) continue;
             if (look == null) look = look(app);

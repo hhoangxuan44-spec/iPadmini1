@@ -109,13 +109,24 @@ public final class StoryArt {
 
     public static float draw(Canvas canvas, Fonts f, int w, int h, Look L, Bitmap backdrop) {
         CalendarArt.P p = params(L);
-        float innerW = p.inner;
-        // 描述尽量完整；组件太矮时才减少行数，保证字不会缩得太小
+        float natInner = p.inner;
+        boolean fill = p.card != 0;
+        // 组件拉宽时文字行变长、拉高时行数变多：在一系列宽度里挑一个，让字能排得最大
+        float bestU = -1, bestInner = natInner;
         int lines = 0;
-        float u = 0, cardW = 0, cardH = 0;
-        for (int tries = 0; tries < 12; tries++) {
-            Pen m = new Pen(null, 1);
-            float ih = content(m, f, L, p, 0, 0, innerW, lines);
+        for (float iw = natInner * 0.85f; iw <= natInner * 2.4f; iw += 0.75f) {
+            float ih = content(new Pen(null, 1), f, L, p, 0, 0, iw, 0);
+            float cw = iw + p.padL + p.padR, ch = ih + p.padT + p.padB;
+            float u = Math.min(w / (cw + 2 * p.margin), h / (ch + 2 * p.margin));
+            if (u > bestU * 1.002f) {
+                bestU = u;
+                bestInner = iw;
+            }
+        }
+        float innerW = bestInner, u = bestU, cardW, cardH;
+        // 描述尽量完整；组件太矮时才减少行数，保证字不会缩得太小
+        for (int tries = 0; tries < 10; tries++) {
+            float ih = content(new Pen(null, 1), f, L, p, 0, 0, innerW, lines);
             cardW = innerW + p.padL + p.padR;
             cardH = ih + p.padT + p.padB;
             u = Math.min(w / (cardW + 2 * p.margin), h / (cardH + 2 * p.margin));
@@ -123,21 +134,38 @@ public final class StoryArt {
             if (u >= wu * 0.72f || lines == 2) break;
             lines = lines == 0 ? Math.max(2, descLinesOf(f, L, p, innerW) - 1) : Math.max(2, lines - 1);
         }
+        float ih = content(new Pen(null, 1), f, L, p, 0, 0, innerW, lines);
+        cardW = innerW + p.padL + p.padR;
+        cardH = ih + p.padT + p.padB;
         float totalW = w / u, totalH = h / u;
-        float x0 = L.leftAligned() ? p.margin : totalW - p.margin - cardW;
-        float y0 = L.pos.startsWith("t") ? p.margin : L.pos.startsWith("b") ? totalH - p.margin - cardH : (totalH - cardH) / 2f;
+        float x0, y0, cw = cardW, chh = cardH;
+        if (fill) {
+            // 有卡片的风格：卡片铺满整个组件，内容居中
+            cw = Math.max(cardW, totalW - 2 * p.margin);
+            chh = Math.max(cardH, totalH - 2 * p.margin);
+            if (L.style.equals("band")) {
+                cw = Math.max(cardW, totalW);
+                chh = Math.min(chh, cardH * 1.5f);
+            }
+            x0 = L.style.equals("band") ? 0 : (totalW - cw) / 2f;
+            y0 = (totalH - chh) / 2f;
+        } else {
+            x0 = L.leftAligned() ? p.margin : totalW - p.margin - cardW;
+            y0 = L.pos.startsWith("t") ? p.margin : L.pos.startsWith("b") ? totalH - p.margin - cardH : (totalH - cardH) / 2f;
+        }
         Pen pen = new Pen(canvas, u);
         if (L.style.equals("gallery")) {
-            CalendarArt.cardShadow(pen, x0, y0, cardW, cardH, p.radius, 1.6f, 0.9f, 0x80000000);
+            CalendarArt.cardShadow(pen, x0, y0, cw, chh, p.radius, 1.6f, 0.9f, 0x80000000);
             Paint base = pen.paint();
             base.setColor(0xF0FAF6EE);
-            CalendarArt.rrect(canvas, u, x0, y0, cardW, cardH, p.radius, base);
+            CalendarArt.rrect(canvas, u, x0, y0, cw, chh, p.radius, base);
         } else {
             CalendarArt.Spec spec = new CalendarArt.Spec(w, h, L, java.util.Calendar.getInstance());
             spec.backdrop = backdrop;
-            CalendarArt.paintCard(pen, spec, p, x0, y0, cardW, cardH);
+            CalendarArt.paintCard(pen, spec, p, x0, y0, cw, chh);
         }
-        content(pen, f, L, p, x0 + p.padL, y0 + p.padT, innerW, lines);
+        float cx = x0 + (cw - cardW) / 2f + p.padL, cy = y0 + (chh - cardH) / 2f + p.padT;
+        content(pen, f, L, p, cx, cy, innerW, lines);
         return u;
     }
 

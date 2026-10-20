@@ -79,6 +79,42 @@
                 android:resource="@xml/story_widget_info" />
         </receiver>
 
+        <receiver
+            android:name=".widget.ClockWidget"
+            android:label="光影时钟"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/clock_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WeekWidget"
+            android:label="光影本周"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.QuoteWidget"
+            android:label="光影一言"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quote_widget_info" />
+        </receiver>
+
         <!-- 点组件换下一张 -->
         <receiver
             android:name=".widget.ControlReceiver"

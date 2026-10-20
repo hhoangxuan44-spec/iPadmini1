@@ -67,7 +67,7 @@ public class WidgetRenderTest {
             {"band", "nature", "light", "bl"}, {"paper", "east", "dark", "tl"},
             {"poster", "sky", "light", "tr"}, {"gallery", "west", "light", "r"}, {"vpoem", "east", "dark", "l"},
         };
-        int[][] sizes = {{560, 800}, {980, 440}, {640, 640}};
+        int[][] sizes = {{560, 800}, {980, 440}, {640, 640}, {420, 900}, {900, 300}};
         Calendar now = Calendar.getInstance();
         now.clear();
         now.set(2026, Calendar.OCTOBER, 19, 7, 18);
@@ -88,6 +88,36 @@ public class WidgetRenderTest {
                 Bitmap w2 = wall(s[0], s[1], 0xFF35486B, 0xFFB9603A);
                 new Canvas(w2).drawBitmap(StoryArt.render(f, s[0], s[1], look, Bitmap.createScaledBitmap(w2, Math.max(2, s[0] / 24), Math.max(2, s[1] / 24), true)), 0, 0, null);
                 Png.save(w2, "story_" + d[0] + "_" + d[3] + "_" + s[0] + "x" + s[1]);
+            }
+        }
+    }
+
+    @Test public void parts() throws Exception {
+        io.github.guangying.render.Fonts f = fonts();
+        Calendar now = Calendar.getInstance();
+        now.clear();
+        now.set(2026, Calendar.OCTOBER, 19, 7, 18);
+        String[][] defs = {
+            {"minimal", "nature", "light", "tl"}, {"glass", "nature", "light", "br"}, {"magazine", "nature", "light", "r"},
+            {"band", "nature", "light", "bl"}, {"paper", "east", "dark", "tl"}, {"poster", "sky", "light", "tr"},
+            {"gallery", "west", "light", "r"}, {"vpoem", "east", "dark", "l"},
+        };
+        String[] names = {"full", "clock", "week", "quote"};
+        int[][] sizes = {{520, 520}, {800, 320}};
+        for (String[] d : defs) {
+            int accent = d[0].equals("paper") || d[0].equals("vpoem") ? 0xFFB23A2E : d[2].equals("light") ? 0xFFF0A080 : 0xFF7A3A22;
+            int bg = d[0].equals("paper") || d[0].equals("vpoem") ? 0xFFF1EADA : d[0].equals("band") ? 0xFF2A3350 : 0xFF3A2D2A;
+            Look look = Look.of(photo(d[0], d[1], d[2], accent, bg), d[3]);
+            for (int part = 0; part < 4; part++) {
+                for (int[] sz : sizes) {
+                    Bitmap w = wall(sz[0], sz[1], 0xFF35486B, 0xFFB9603A);
+                    CalendarArt.Spec spec = new CalendarArt.Spec(sz[0], sz[1], look, now);
+                    spec.part = part;
+                    spec.backdrop = Bitmap.createScaledBitmap(w, Math.max(2, sz[0] / 24), Math.max(2, sz[1] / 24), true);
+                    spec.motto = new String[]{"知者不惑，仁者不忧，勇者不惧。", "《论语》"};
+                    new Canvas(w).drawBitmap(CalendarArt.render(f, spec), 0, 0, null);
+                    Png.save(w, "part_" + names[part] + "_" + d[0] + "_" + sz[0] + "x" + sz[1]);
+                }
             }
         }
     }
@@ -118,6 +148,31 @@ public class WidgetRenderTest {
             new Canvas(w).drawBitmap(art, 0, 0, null);
             try (java.io.FileOutputStream o = new java.io.FileOutputStream(new File(dir, names[i] + ".png"))) {
                 w.compress(Bitmap.CompressFormat.PNG, 100, o);
+            }
+        }
+    }
+
+    @Test public void previews2() throws Exception {
+        io.github.guangying.render.Fonts f = fonts();
+        Calendar now = Calendar.getInstance();
+        now.clear();
+        now.set(2026, Calendar.OCTOBER, 19, 7, 18);
+        Photo p = photo("glass", "nature", "light", 0xFFF0A080, 0xFF3A2D2A);
+        Look look = Look.of(p, "tl");
+        File dir = new File("../../app/src/main/res/drawable-nodpi");
+        dir.mkdirs();
+        int[] parts = {CalendarArt.CLOCK, CalendarArt.WEEK, CalendarArt.QUOTE};
+        String[] names = {"preview_clock", "preview_week", "preview_quote"};
+        for (int i = 0; i < 3; i++) {
+            int w = 520, h = i == 1 ? 260 : 300;
+            Bitmap bg = wall(w, h, 0xFF35486B, 0xFFB9603A);
+            CalendarArt.Spec spec = new CalendarArt.Spec(w, h, look, now);
+            spec.part = parts[i];
+            spec.backdrop = Bitmap.createScaledBitmap(bg, 22, 14, true);
+            spec.motto = new String[]{"知者不惑，仁者不忧，勇者不惧。", "《论语》"};
+            new Canvas(bg).drawBitmap(CalendarArt.render(f, spec), 0, 0, null);
+            try (java.io.FileOutputStream o = new java.io.FileOutputStream(new File(dir, names[i] + ".png"))) {
+                bg.compress(Bitmap.CompressFormat.PNG, 100, o);
             }
         }
     }

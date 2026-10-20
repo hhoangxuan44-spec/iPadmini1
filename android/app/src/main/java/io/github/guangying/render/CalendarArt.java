@@ -38,6 +38,8 @@ public final class CalendarArt {
         for (int i = 0; i < kv.length; i += 2) FEST_SHORT.put(kv[i], kv[i + 1]);
     }
 
+    public static final int FULL = 0, CLOCK = 1, WEEK = 2, QUOTE = 3;
+
     /** 要画什么：组件大小（像素）、这张图的风格、日期与时间。 */
     public static final class Spec {
         public int w, h;
@@ -48,6 +50,8 @@ public final class CalendarArt {
         public boolean use24h = true;
         /** 组件背后壁纸的模糊图（和组件位图同样大小的区域），玻璃风格用它做磨砂效果；可为 null */
         public Bitmap backdrop;
+        /** 画什么：整张月历、只有时钟、本周、每日一言 */
+        public int part = FULL;
 
         public Spec(int w, int h, Look look, Calendar now) {
             this.w = w;
@@ -208,45 +212,104 @@ public final class CalendarArt {
     }
 
     /** 选版式并绘制；返回实际使用的缩放（像素 / rem），供测试查看。 */
-    public static float draw(Canvas canvas, Fonts f, Spec s) {
+    /** 按版式（上下排 / 左右排）准备这张图的尺寸参数 */
+    private static P make(Spec s, boolean wide) {
         P p = params(s.look);
-        boolean poem = p.vpoem && hasPoem(s) && s.h >= 1.3f * s.w;
+        if (s.part == CLOCK && !p.poster) p.timeSize *= 1.35f;
+        if (wide && p.bigMonth && s.part == FULL) {      // 杂志风格横着排时不用整列大数字
+            p.bigMonth = false;
+            p.stretch = false;
+            p.timeSize = 3.2f;
+            p.lunar = true;
+            p.padL = p.padR = 1.5f;
+            p.padT = 1.4f;
+            p.padB = 1.4f;
+            p.cell = 2.2f;
+            p.inner = p.grid = 18.6f;
+            p.margin = 0.8f;
+        }
+        return p;
+    }
+
+    public static float draw(Canvas canvas, Fonts f, Spec s) {
+        boolean poem = s.part == FULL && params(s.look).vpoem && hasPoem(s) && s.h >= 1.3f * s.w;
         float bestU = -1;
         boolean bestWide = false;
         for (int i = 0; i < 2; i++) {
             boolean wide = i == 1;
-            if (wide && (p.bigMonth || poem)) continue;
-            float[] sz = natural(f, s, p, wide, poem);
-            float u = Math.min(s.w / (sz[0] + 2 * p.margin), s.h / (sz[1] + 2 * p.margin));
+            if (wide && (s.part != FULL || poem)) continue;
+            P pc = make(s, wide);
+            float[] sz = natural(f, s, pc, wide, poem);
+            float u = Math.min(s.w / (sz[0] + 2 * pc.margin), s.h / (sz[1] + 2 * pc.margin));
             if (u > bestU) {
                 bestU = u;
                 bestWide = wide;
             }
         }
+        P p = make(s, bestWide);
         float[] sz = natural(f, s, p, bestWide, poem);
         float u = bestU;
         float totalW = s.w / u, totalH = s.h / u;
-        float cardW = sz[0], cardH = sz[1];
-        if (p.fillWidth) cardW = Math.max(cardW, totalW);
-        if (p.stretch) cardH = Math.max(cardH, totalH - 2 * p.margin);
-        float x0 = s.look.leftAligned() ? p.margin : totalW - p.margin - cardW;
-        if (p.fillWidth) x0 = 0;
-        float y0 = s.look.pos.startsWith("t") ? p.margin : s.look.pos.startsWith("b") ? totalH - p.margin - cardH
-                : (totalH - cardH) / 2f;
-        if (p.stretch) y0 = p.margin;
+        float m = p.margin;
+        float cardW = sz[0], cardH = sz[1], x0, y0, offX = 0, offY = 0;
+        boolean fill = p.card != NONE;
+        if (fill) {
+            // 有卡片的风格：卡片铺满整个组件，组件拉大时月历随之变宽、变高，内容在卡片里居中
+            cardW = Math.max(sz[0], totalW - 2 * m);
+            cardH = Math.max(sz[1], totalH - 2 * m);
+            if (p.card == BAND) {
+                cardW = Math.max(sz[0], totalW);
+                cardH = Math.min(cardH, sz[1] * 1.4f);
+            }
+            float extraW = cardW - sz[0], extraH = cardH - sz[1];
+            float addW = Math.min(extraW, p.grid * 0.9f);
+            if (s.part == WEEK || s.part == FULL) {
+                p.grid += addW;
+                p.inner += addW;
+            } else {
+                p.inner += addW;
+            }
+            offX = (extraW - addW) / 2f;
+            if (!p.stretch) {
+                int rows = s.part == FULL ? rowsOf(s) : 1;
+                float cb = Math.min(extraH * 0.6f / rows, p.cell * 0.5f);
+                if (s.part == FULL || s.part == WEEK) p.cell += cb;
+                if (s.part == FULL) p.gap += Math.min((extraH - cb * rows) * 0.3f, 3f);
+                float[] nz = natural(f, s, p, bestWide, poem);
+                offY = Math.max(0, (cardH - nz[1]) / 2f);
+            }
+            x0 = p.card == BAND ? 0 : m;
+            y0 = s.look.pos.startsWith("t") ? m : s.look.pos.startsWith("b") ? totalH - m - cardH : (totalH - cardH) / 2f;
+            if (p.card != BAND) y0 = (totalH - cardH) / 2f;
+        } else {
+            if (p.fillWidth) cardW = Math.max(cardW, totalW);
+            if (p.stretch) cardH = Math.max(cardH, totalH - 2 * m);
+            x0 = s.look.leftAligned() ? m : totalW - m - cardW;
+            y0 = s.look.pos.startsWith("t") ? m : s.look.pos.startsWith("b") ? totalH - m - cardH : (totalH - cardH) / 2f;
+            if (p.stretch) y0 = m;
+        }
+        if (p.stretch) y0 = m;
         Pen pen = new Pen(canvas, u);
         paintCard(pen, s, p, x0, y0, cardW, cardH);
-        float innerW = cardW - p.padL - p.padR, innerH = cardH - p.padT - p.padB;
-        content(pen, f, s, p, bestWide, poem, x0 + p.padL, y0 + p.padT, innerW, innerH);
+        float innerW = cardW - p.padL - p.padR - 2 * offX, innerH = cardH - p.padT - p.padB;
+        content(pen, f, s, p, bestWide, poem, x0 + p.padL + offX, y0 + p.padT + offY, innerW, innerH);
         paintOver(pen, f, s, p, x0, y0, cardW, cardH);
         return u;
+    }
+
+    private static int rowsOf(Spec s) {
+        Calendar first = Calendar.getInstance();
+        first.clear();
+        first.set(s.viewYear, s.viewMonth, 1);
+        return (first.get(Calendar.DAY_OF_WEEK) - 1 + first.getActualMaximum(Calendar.DAY_OF_MONTH) + 6) / 7;
     }
 
     /** 内容自然尺寸（卡片宽、高，rem） */
     private static float[] natural(Fonts f, Spec s, P p, boolean wide, boolean poem) {
         Pen m = new Pen(null, 1);
         float innerW = wide ? p.leftCol + p.gap + p.grid : p.inner;
-        if (p.fillWidth && !wide) innerW = p.inner;
+        if (s.part == CLOCK) innerW = p.poster ? p.inner : Math.min(p.inner, 16f);
+        if (p.fillWidth && !wide && s.part == FULL) innerW = p.inner;
         float innerH = content(m, f, s, p, wide, poem, 0, 0, innerW, -1);
         return new float[]{innerW + p.padL + p.padR, innerH + p.padT + p.padB};
     }
@@ -260,6 +323,9 @@ public final class CalendarArt {
     /** h < 0：测量自然高度；否则 h 是可用高度（拉伸风格用它把时钟推到底部）。返回内容高度。 */
     private static float content(Pen pen, Fonts f, Spec s, P p, boolean wide, boolean poem,
                                  float x, float y, float w, float h) {
+        if (s.part == CLOCK) return clockBlock(pen, f, s, p, x, y, w, false);
+        if (s.part == WEEK) return weekBlock(pen, f, s, p, x, y, p.grid);
+        if (s.part == QUOTE) return quoteBlock(pen, f, s, p, x, y, w);
         if (p.bigMonth) {
             float hm = monthBlock(pen, f, s, p, x, y, p.grid);
             float hc = clockBlock(pen, f, s, p, x, 0, w, true);          // 先量高度
@@ -509,6 +575,73 @@ public final class CalendarArt {
             }
         }
         return cy - y + rows * p.cell;
+    }
+
+    // ---------------------------------------------------------------- 本周
+
+    private static float weekBlock(Pen pen, Fonts f, Spec s, P p, float x, float y, float w) {
+        Look L = s.look;
+        int ink = L.ink();
+        shadowFor(pen, p, L);
+        Calendar n = s.now;
+        Calendar sun = (Calendar) n.clone();
+        sun.add(Calendar.DAY_OF_MONTH, -(n.get(Calendar.DAY_OF_WEEK) - 1));
+        Calendar sat = (Calendar) sun.clone();
+        sat.add(Calendar.DAY_OF_MONTH, 6);
+        float cy = y;
+        String range = (sun.get(Calendar.MONTH) + 1) + "月" + sun.get(Calendar.DAY_OF_MONTH) + "日 – "
+                + (sat.get(Calendar.MONTH) + 1) + "月" + sat.get(Calendar.DAY_OF_MONTH) + "日";
+        pen.text("本周", x, cy, 1.3f, p.serifGrid ? f.serif(700) : f.sans(600), 1.0f, L.accent, 1f, 0.12f, Pen.LEFT);
+        pen.text(range, x + 3.0f, cy, 1.3f, p.serifGrid ? f.serif(400) : f.sans(400), 0.82f, ink, 0.7f, 0.04f, Pen.LEFT);
+        cy += 1.3f + 0.6f;
+        float cw = w / 7f, cell = Math.max(p.cell, 2.2f) * 1.5f;
+        Typeface wk = p.serifGrid ? f.serif(600) : f.sans(600);
+        for (int i = 0; i < 7; i++) {
+            Calendar d = (Calendar) sun.clone();
+            d.add(Calendar.DAY_OF_MONTH, i);
+            float cx = x + cw * (i + 0.5f);
+            boolean isToday = d.get(Calendar.DAY_OF_YEAR) == n.get(Calendar.DAY_OF_YEAR) && d.get(Calendar.YEAR) == n.get(Calendar.YEAR);
+            boolean weekend = i == 0 || i == 6;
+            float a = isToday ? 1f : weekend ? 0.62f : 1f;
+            pen.text(WEEK_SHORT[i], cx, cy, 1.4f, wk, 0.7f, ink, weekend ? 0.45f : 0.6f, 0, Pen.CENTER);
+            float top = cy + 1.5f, box = 2.2f;
+            if (isToday && pen.c != null) {
+                Paint pt = pen.paint();
+                pt.setColor(L.accent);
+                pen.c.drawCircle(cx * pen.u, (top + box / 2f) * pen.u, box / 2f * pen.u, pt);
+            }
+            if (isToday) pen.noShadow(); else shadowFor(pen, p, L);
+            pen.digits(String.valueOf(d.get(Calendar.DAY_OF_MONTH)), cx, top, box, numFace(f, p, isToday ? 600 : 500), 1.25f,
+                    isToday ? L.onAccent() : ink, a, 0, Pen.CENTER);
+            Lunar.Info info = Lunar.info(d.get(Calendar.YEAR), d.get(Calendar.MONTH) + 1, d.get(Calendar.DAY_OF_MONTH));
+            boolean fest = !info.festivals.isEmpty();
+            String sub = fest ? (FEST_SHORT.containsKey(info.festivals.get(0)) ? FEST_SHORT.get(info.festivals.get(0)) : info.festivals.get(0))
+                    : info.lunar.day == 1 ? info.lunar.monthName : info.lunar.dayName;
+            shadowFor(pen, p, L);
+            pen.text(sub, cx, top + box + 0.15f, 1.0f, fest ? f.sans(700) : f.sans(400), 0.7f, fest ? L.accent : ink,
+                    fest ? a : 0.6f * a, 0, Pen.CENTER);
+        }
+        return 1.3f + 0.6f + 1.5f + 2.2f + 0.15f + 1.0f;
+    }
+
+    // ---------------------------------------------------------------- 每日一言
+
+    private static float quoteBlock(Pen pen, Fonts f, Spec s, P p, float x, float y, float w) {
+        if (s.motto == null || s.motto.length < 2) return 0;
+        Look L = s.look;
+        int ink = L.ink();
+        shadowFor(pen, p, L);
+        float size = p.poster ? 1.9f : 1.5f, lh = size * 1.75f, cy = y;
+        if (pen.c != null) {
+            Paint pt = pen.paint();
+            pt.setColor(L.accent);
+            pen.c.drawRect(x * pen.u, cy * pen.u, (x + 2f) * pen.u, (cy + 0.14f) * pen.u, pt);
+        }
+        cy += 0.14f + 0.9f;
+        cy += pen.paragraph(s.motto[0], x, cy, w, lh, f.serif(400), size, ink, 1f, 0.06f, 0);
+        cy += 0.5f;
+        pen.text("— " + s.motto[1], x, cy, 1.2f, f.sans(400), 0.8f, ink, 0.65f, 0.1f, Pen.LEFT);
+        return cy + 1.2f - y;
     }
 
     // ---------------------------------------------------------------- 竖排诗句（诗笺风格）
