@@ -11,9 +11,9 @@ import io.github.guangying.data.Photo;
 public final class StoryArt {
     private StoryArt() {}
 
-    public static Bitmap render(Fonts f, int w, int h, Look look, Bitmap backdrop) {
+    public static Bitmap render(Fonts f, int w, int h, Look look, Bitmap backdrop, boolean contentOnly) {
         Bitmap bm = Bitmap.createBitmap(Math.max(1, w), Math.max(1, h), Bitmap.Config.ARGB_8888);
-        draw(new Canvas(bm), f, w, h, look, backdrop);
+        draw(new Canvas(bm), f, w, h, look, backdrop, contentOnly);
         return bm;
     }
 
@@ -107,7 +107,7 @@ public final class StoryArt {
         return cy - y;
     }
 
-    public static float draw(Canvas canvas, Fonts f, int w, int h, Look L, Bitmap backdrop) {
+    public static float draw(Canvas canvas, Fonts f, int w, int h, Look L, Bitmap backdrop, boolean contentOnly) {
         CalendarArt.P p = params(L);
         float natInner = p.inner;
         boolean fill = p.card != 0;
@@ -154,7 +154,9 @@ public final class StoryArt {
             y0 = L.pos.startsWith("t") ? p.margin : L.pos.startsWith("b") ? totalH - p.margin - cardH : (totalH - cardH) / 2f;
         }
         Pen pen = new Pen(canvas, u);
-        if (L.style.equals("gallery")) {
+        if (contentOnly && fill) {
+            // 卡片由原生布局铺满
+        } else if (L.style.equals("gallery")) {
             CalendarArt.cardShadow(pen, x0, y0, cw, chh, p.radius, 1.6f, 0.9f, 0x80000000);
             Paint base = pen.paint();
             base.setColor(0xF0FAF6EE);

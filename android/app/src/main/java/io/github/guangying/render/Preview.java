@@ -54,7 +54,7 @@ public final class Preview {
         Canvas c = new Canvas(out);
         for (int kind = 0; kind < 2; kind++) {
             int rw = Math.round(r[kind][2] * w), rh = Math.round(r[kind][3] * h);
-            Bitmap bm = Widgets.render(ctx, kind, look, rw, rh, Widgets.backdrop(ctx, look, kind));
+            Bitmap bm = Widgets.render(ctx, kind, look, rw, rh, Widgets.backdrop(ctx, look, kind), false);
             c.drawBitmap(bm, Math.round(r[kind][0] * w), Math.round(r[kind][1] * h), null);
         }
         return out;

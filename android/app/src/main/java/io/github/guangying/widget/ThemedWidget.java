@@ -15,7 +15,6 @@ import android.widget.RemoteViews;
 import java.util.List;
 import java.util.Map;
 
-import io.github.guangying.R;
 import io.github.guangying.render.Look;
 
 /** 月历、画意组件的共同部分：画位图、点一下换下一张壁纸。 */
@@ -36,23 +35,14 @@ public abstract class ThemedWidget extends AppWidgetProvider {
             Map<SizeF, RemoteViews> map = new ArrayMap<>();
             for (float[] s : sizes) {
                 int[] px = Widgets.fitPx(s[0] * density, s[1] * density, 2.6e6f);
-                map.put(new SizeF(s[0], s[1]), view(ctx, Widgets.render(ctx, kind, look, px[0], px[1], backdrop)));
+                map.put(new SizeF(s[0], s[1]), Cards.build(ctx, look, kind, Widgets.render(ctx, kind, look, px[0], px[1], backdrop, true), backdrop));
             }
             mgr.updateAppWidget(id, new RemoteViews(map));
         } else {
             float[] s = sizes.get(0);
             int[] px = Widgets.fitPx(s[0] * density, s[1] * density, 3.2e6f);
-            mgr.updateAppWidget(id, view(ctx, Widgets.render(ctx, kind, look, px[0], px[1], backdrop)));
+            mgr.updateAppWidget(id, Cards.build(ctx, look, kind, Widgets.render(ctx, kind, look, px[0], px[1], backdrop, true), backdrop));
         }
-    }
-
-    private static RemoteViews view(Context ctx, Bitmap bm) {
-        RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_image);
-        rv.setImageViewBitmap(R.id.image, bm);
-        Intent next = new Intent(ctx, ControlReceiver.class).setAction(ACTION_NEXT);
-        rv.setOnClickPendingIntent(R.id.image,
-                PendingIntent.getBroadcast(ctx, 0, next, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-        return rv;
     }
 
     @Override

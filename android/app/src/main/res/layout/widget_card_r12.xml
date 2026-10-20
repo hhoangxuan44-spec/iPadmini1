@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 桌面组件的底：卡片背景由系统按组件的真实大小铺满，只有文字内容是位图，居中显示，所以不会被拉伸，也不会留空边 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/card_clip_12"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:id="@+id/backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <View android:id="@+id/fill" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <View android:id="@+id/tint" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <View android:id="@+id/sheen" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <View android:id="@+id/tex" android:layout_width="match_parent" android:layout_height="match_parent" android:background="@drawable/grain_tile" android:visibility="gone" />
+    <View android:id="@+id/scrim" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <View android:id="@+id/border" android:layout_width="match_parent" android:layout_height="match_parent" android:visibility="gone" />
+    <View android:id="@+id/line" android:layout_width="match_parent" android:layout_height="3dp" android:layout_gravity="top" android:visibility="gone" />
+
+    <ImageView
+        android:id="@+id/image"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/app_name"
+        android:scaleType="fitCenter" />
+
+</FrameLayout>

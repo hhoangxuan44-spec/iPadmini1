@@ -52,6 +52,8 @@ public final class CalendarArt {
         public Bitmap backdrop;
         /** 画什么：整张月历、只有时钟、本周、每日一言 */
         public int part = FULL;
+        /** 只画文字内容：卡片背景、边框由桌面组件的原生布局按真实大小铺满（见 widget/Cards） */
+        public boolean contentOnly;
 
         public Spec(int w, int h, Look look, Calendar now) {
             this.w = w;
@@ -290,10 +292,19 @@ public final class CalendarArt {
         }
         if (p.stretch) y0 = m;
         Pen pen = new Pen(canvas, u);
-        paintCard(pen, s, p, x0, y0, cardW, cardH);
+        if (!s.contentOnly || p.card == NONE) paintCard(pen, s, p, x0, y0, cardW, cardH);
         float innerW = cardW - p.padL - p.padR - 2 * offX, innerH = cardH - p.padT - p.padB;
         content(pen, f, s, p, bestWide, poem, x0 + p.padL + offX, y0 + p.padT + offY, innerW, innerH);
-        paintOver(pen, f, s, p, x0, y0, cardW, cardH);
+        if (s.contentOnly) {
+            // 卡片由原生布局负责：印章、竖线格贴着文字内容的范围画
+            float[] nz = natural(f, s, p, bestWide, poem);
+            float rw = innerW + p.padL + p.padR, rh = p.stretch ? cardH : nz[1];
+            float rx = x0 + offX, ry = p.stretch ? y0 : y0 + offY;
+            paintRules(pen, p, rx, ry, rw, rh);
+            seal(pen, f, s, p, rx, ry, rw, rh);
+        } else {
+            paintOver(pen, f, s, p, x0, y0, cardW, cardH);
+        }
         return u;
     }
 
@@ -786,13 +797,7 @@ public final class CalendarArt {
                 c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, vig);
                 c.drawRect(x * u, y * u, (x + w) * u, (y + h) * u, Texture.grain(0.2f, Math.max(1f, u * 0.07f)));
                 c.restore();
-                if (p.card == RULED) {                    // 红色竖线格
-                    Paint ln = pen.paint();
-                    ln.setColor(0x38B23A2E);
-                    for (float lx = x + 0.9f + 2.2f; lx < x + w - 0.5f; lx += COL_W) {
-                        c.drawRect(lx * u, (y + 0.5f) * u, lx * u + Math.max(1f, 0.07f * u), (y + h - 0.5f) * u, ln);
-                    }
-                }
+                if (p.card == RULED) paintRules(pen, p, x, y, w, h);
                 Paint bd = pen.paint();
                 bd.setStyle(Paint.Style.STROKE);
                 bd.setStrokeWidth(Math.max(1f, 0.07f * u));
@@ -839,6 +844,7 @@ public final class CalendarArt {
             }
             default: {
                 if (L.style.equals("magazine")) {
+                    if (s.contentOnly) break;
                     boolean left = L.leftAligned();
                     float cw = c.getWidth();
                     float gx0 = left ? 0 : cw, gx1 = left ? (x + w) * u : x * u;
@@ -878,27 +884,45 @@ public final class CalendarArt {
             hi.setShader(new LinearGradient(0, y * u, 0, (y + p.radius * 2) * u, 0x8CFFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
             rrect(c, u, x + 0.1f, y + 0.1f, w - 0.2f, h - 0.2f, p.radius, hi);
         }
-        boolean seal = p.card == PAPER && s.look.kind.equals("east");
-        if (seal) {
-            float sw = 1.9f, sx = x + w - 1.8f - sw, sy = y + 1.8f;
-            String txt = NUM_CN[s.viewMonth] + "月";
-            float sh = txt.length() * 0.82f * 1.1f + 0.7f;
-            c.save();
-            c.rotate(-4f, (sx + sw / 2) * u, (sy + sh / 2) * u);
-            Paint pt = pen.paint();
-            pt.setColor(Look.withAlpha(0xFFB23A2E, 0.92f));
-            rrect(c, u, sx, sy, sw, sh, 0.2f, pt);
-            Paint bd = pen.paint();
-            bd.setStyle(Paint.Style.STROKE);
-            bd.setStrokeWidth(0.12f * u);
-            bd.setColor(0x59F6EFE0);
-            rrect(c, u, sx + 0.06f, sy + 0.06f, sw - 0.12f, sh - 0.12f, 0.15f, bd);
-            pen.noShadow();
-            for (int i = 0; i < txt.length(); i++) {
-                pen.text(String.valueOf(txt.charAt(i)), sx + sw / 2, sy + 0.35f + i * 0.9f, 0.9f, f.serif(700), 0.82f,
-                        0xFFF6EFE0, 1f, 0, Pen.CENTER);
-            }
-            c.restore();
+        seal(pen, f, s, p, x, y, w, h);
+    }
+
+    /** 竖排诗笺的红色竖线格 */
+    static void paintRules(Pen pen, P p, float x, float y, float w, float h) {
+        if (p.card != RULED) return;
+        Canvas c = pen.c;
+        float u = pen.u;
+        Paint ln = pen.paint();
+        ln.setColor(0x38B23A2E);
+        for (float lx = x + 0.9f + 2.2f; lx < x + w - 0.5f; lx += COL_W) {
+            c.drawRect(lx * u, (y + 0.5f) * u, lx * u + Math.max(1f, 0.07f * u), (y + h - 0.5f) * u, ln);
         }
+    }
+
+    /** 宣纸风格、东方绘画的朱红印章 */
+    private static void seal(Pen pen, Fonts f, Spec s, P p, float x, float y, float w, float h) {
+        Canvas c = pen.c;
+        float u = pen.u;
+        boolean seal = p.card == PAPER && s.look.kind.equals("east");
+        if (!seal) return;
+        float sw = 1.9f, sx = x + w - 1.8f - sw, sy = y + 1.8f;
+        String txt = NUM_CN[s.viewMonth] + "月";
+        float sh = txt.length() * 0.82f * 1.1f + 0.7f;
+        c.save();
+        c.rotate(-4f, (sx + sw / 2) * u, (sy + sh / 2) * u);
+        Paint pt = pen.paint();
+        pt.setColor(Look.withAlpha(0xFFB23A2E, 0.92f));
+        rrect(c, u, sx, sy, sw, sh, 0.2f, pt);
+        Paint bd = pen.paint();
+        bd.setStyle(Paint.Style.STROKE);
+        bd.setStrokeWidth(0.12f * u);
+        bd.setColor(0x59F6EFE0);
+        rrect(c, u, sx + 0.06f, sy + 0.06f, sw - 0.12f, sh - 0.12f, 0.15f, bd);
+        pen.noShadow();
+        for (int i = 0; i < txt.length(); i++) {
+            pen.text(String.valueOf(txt.charAt(i)), sx + sw / 2, sy + 0.35f + i * 0.9f, 0.9f, f.serif(700), 0.82f,
+                    0xFFF6EFE0, 1f, 0, Pen.CENTER);
+        }
+        c.restore();
     }
 }

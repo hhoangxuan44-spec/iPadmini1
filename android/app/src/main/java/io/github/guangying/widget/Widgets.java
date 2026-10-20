@@ -54,12 +54,13 @@ public final class Widgets {
         return Look.of(p != null ? p : fallback(), new Prefs(ctx).position());
     }
 
-    public static Bitmap render(Context ctx, int kind, Look look, int w, int h, Bitmap backdrop) {
+    public static Bitmap render(Context ctx, int kind, Look look, int w, int h, Bitmap backdrop, boolean contentOnly) {
         Fonts f = fonts(ctx);
-        if (kind == STORY) return StoryArt.render(f, w, h, look, backdrop);
+        if (kind == STORY) return StoryArt.render(f, w, h, look, backdrop, contentOnly);
         Calendar now = Calendar.getInstance();
         CalendarArt.Spec spec = new CalendarArt.Spec(w, h, look, now);
         spec.backdrop = backdrop;
+        spec.contentOnly = contentOnly;
         spec.part = kind == CLOCK ? CalendarArt.CLOCK : kind == WEEK ? CalendarArt.WEEK : kind == QUOTE ? CalendarArt.QUOTE
                 : CalendarArt.FULL;
         spec.motto = Mottos.forDay(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH));
