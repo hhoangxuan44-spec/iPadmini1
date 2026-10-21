@@ -118,6 +118,17 @@ public class MainActivity extends Activity implements Wall.Listener {
             side.addView(ct);
             side.addView(gap(14));
         }
+        final TextView update = text("", 14, 0xFF0A0A0A);
+        update.setVisibility(View.GONE);
+        update.setGravity(Gravity.CENTER);
+        update.setPadding(px(12), px(12), px(12), px(12));
+        GradientDrawable ub = new GradientDrawable();
+        ub.setCornerRadius(px(12));
+        ub.setColor(0xFFFFD60A);
+        update.setBackground(ub);
+        side.addView(update);
+        checkUpdate(update);
+
         TextView title = text("光影月历", 34, Color.WHITE);
         title.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         side.addView(title);
@@ -194,6 +205,30 @@ public class MainActivity extends Activity implements Wall.Listener {
         });
         updateStatus();
         if (Site.unmetered(this)) download();
+    }
+
+    /** 检查有没有新版 App：网站上的 version.json 比当前装的新，就显示一条提示，点一下下载安装包 */
+    private void checkUpdate(final TextView banner) {
+        new Thread(() -> {
+            try {
+                byte[] data = Site.download(Site.BASE + "version.json?t=" + System.currentTimeMillis(), 6000);
+                if (data == null) return;
+                org.json.JSONObject o = new org.json.JSONObject(new String(data, "UTF-8"));
+                long remote = o.optLong("versionCode", 0);
+                long local = getPackageManager().getPackageInfo(getPackageName(), 0).getLongVersionCode();
+                final String apk = Site.BASE + o.optString("apk", "guangying.apk");
+                if (remote > local) {
+                    runOnUiThread(() -> {
+                        if (isDestroyed()) return;
+                        banner.setText("有新版本（第 " + remote + " 版，当前第 " + local + " 版）——点这里下载，装好就是最新的");
+                        banner.setVisibility(View.VISIBLE);
+                        banner.setOnClickListener(v -> startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apk))));
+                    });
+                }
+            } catch (Exception ignored) {
+                // 没网或网站上没有版本文件，就不提示
+            }
+        }, "guangying-update").start();
     }
 
     private void next() {

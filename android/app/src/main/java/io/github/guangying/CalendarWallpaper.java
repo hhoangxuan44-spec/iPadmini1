@@ -107,10 +107,32 @@ public class CalendarWallpaper extends WallpaperService {
                 showCurrent(false);
                 scheduleAdvance();
                 draw();
+                syncLibrary();
             } else if (registered) {
                 unregisterReceiver(tick);
                 registered = false;
             }
+        }
+
+        /** 图库有更新：每隔半天（联网时）刷新一次图库清单；连着 Wi-Fi 时顺便把新图片存下来 */
+        private void syncLibrary() {
+            final Context app = getApplicationContext();
+            long now = System.currentTimeMillis();
+            if (now - prefs.lastSync() < 12 * 3600000L || !Site.online(app)) return;
+            prefs.setLastSync(now);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    Site.imageList(app);                         // 只下载清单，很小
+                    if (Site.unmetered(app) && !Site.isDownloading()) {
+                        Site.downloadAll(app, new Site.Progress() {
+                            @Override
+                            public void update(int done, int total, boolean finished) {
+                            }
+                        });
+                    }
+                }
+            }, "guangying-sync").start();
         }
 
         /** 过了切换间隔就换一张，否则等到时间再换 */

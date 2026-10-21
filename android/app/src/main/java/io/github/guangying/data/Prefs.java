@@ -34,6 +34,15 @@ public final class Prefs {
         return sp.getBoolean("night", true);
     }
 
+    /** 上次同步图库清单的时间 */
+    public long lastSync() {
+        return sp.getLong("sync", 0);
+    }
+
+    public void setLastSync(long t) {
+        sp.edit().putLong("sync", t).apply();
+    }
+
     public String currentId() {
         return sp.getString("cur", "");
     }

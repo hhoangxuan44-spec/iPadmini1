@@ -77,6 +77,8 @@ jobs:
           name: apk
           path: apk
       - run: cp apk/app-release.apk dist/guangying.apk
+      - name: 写入版本号（App 用它检查有没有新版本）
+        run: echo '{"versionCode":${{ github.run_number }},"apk":"guangying.apk"}' > dist/version.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
