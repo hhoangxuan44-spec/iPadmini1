@@ -920,4 +920,9 @@ TAGS.update({
     "白马与落日": "dusk", "傍晚的天空": "dusk", "林中之光": "summer", "天文学家": "night stars",
     "绘画艺术": "", "睡莲": "summer", "睡莲池": "summer",
 })
+
+from catalog_more import CATALOG_MORE, POEMS_MORE, TAGS_MORE  # noqa: E402
+CATALOG += CATALOG_MORE
+POEMS.update(POEMS_MORE)
+TAGS.update(TAGS_MORE)
 TAGS = {k: v for k, v in TAGS.items() if v}
