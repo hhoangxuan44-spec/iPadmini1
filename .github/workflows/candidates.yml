@@ -2,6 +2,10 @@ name: 列出候选图片
 
 on:
   workflow_dispatch:
+    inputs:
+      group:
+        description: 候选组（nature wild city china east west）
+        default: nature
 
 jobs:
   list:
@@ -12,6 +16,5 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install Pillow zhconv
-      - run: python build/list_candidates.py
-      - name: 候选列表
-        run: cat build/candidates.txt
+      - name: 列出候选
+        run: python build/list_candidates.py ${{ inputs.group }}
