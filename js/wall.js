@@ -1026,10 +1026,18 @@
       if (first && e.total) toast('离线图包下载中 ' + e.loaded + '/' + e.total);
     }, false);
     ac.addEventListener('cached', function () { toast('离线图包已就绪，断网也能用'); }, false);
-    ac.addEventListener('updateready', function () {
+    // 新版本下载完：换上并刷新页面。正在换图时等一会儿再试，不能错过
+    function applyUpdate() {
       try { ac.swapCache(); } catch (e) { /* 忽略 */ }
-      if (!busy) location.reload();
-    }, false);
+      (function go() { if (busy) setTimeout(go, 3000); else location.reload(); })();
+    }
+    ac.addEventListener('updateready', applyUpdate, false);
+    // 主屏幕 App 常年不重启：每小时、以及每次回到前台时主动问一次有没有新版本
+    function check() { try { if (navigator.onLine !== false) ac.update(); } catch (e) { /* 忽略 */ } }
+    setInterval(check, 3600000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); }, false);
+    window.addEventListener('pageshow', check, false);
+    if (ac.status === ac.UPDATEREADY) applyUpdate();
     ac.addEventListener('error', function () { /* 断网或服务器不可用，继续用已缓存的版本 */ }, false);
     // 联网状态变化时重新排队，让轮播立刻切换到合适的图片
     window.addEventListener('online', function () { failStreak = 0; queue = []; }, false);
