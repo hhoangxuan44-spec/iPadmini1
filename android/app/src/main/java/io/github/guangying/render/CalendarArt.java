@@ -408,9 +408,12 @@ public final class CalendarArt {
         float colonPad = 0.03f * size;
         float total = wh + wc + 2 * colonPad + wm;
         float x0 = align == Pen.RIGHT ? x - total : align == Pen.CENTER ? x - total / 2 : x;
+        boolean grad = size >= 2.4f && !p.timeSerif;
+        if (grad) pen.gradient(0.7f);
         pen.digits(hh, x0, y, size, tf, size, ink, 1f, sp, Pen.LEFT);
         pen.digits(":", x0 + wh + colonPad, y - 0.06f * size, size, tf, size, ink, 0.85f, sp, Pen.LEFT);
         pen.digits(mm, x0 + wh + wc + 2 * colonPad, y, size, tf, size, ink, 1f, sp, Pen.LEFT);
+        pen.gradient(1f);
         return size;
     }
 
@@ -473,6 +476,10 @@ public final class CalendarArt {
             else pen.shadow(0.8f, 0f, 0x99FFFFFF);
         } else if (p.card == PLAQUE) {
             pen.shadow(0.5f, 0.06f, 0x66000000);
+        } else if (p.card == PAPER || p.card == RULED) {
+            pen.shadow(0.06f, 0f, 0x59302010);                 // 墨在纸上微微洇开
+        } else if (p.card == GLASS && l.light) {
+            pen.shadow(0.03f, 0.05f, 0x2EFFFFFF);              // 蚀刻：下缘一道高光
         } else {
             pen.noShadow();
         }
@@ -492,7 +499,9 @@ public final class CalendarArt {
         if (p.poster) {
             float dayBox = 10.26f, size = 13.5f;
             String day = String.valueOf(n.get(Calendar.DAY_OF_MONTH));
+            pn.gradient(0.6f);
             float dw = pn.digits(day, x - 0.6f, cy, dayBox, f.num(200), size, ink, 1f, -0.06f, Pen.LEFT);
+            pn.gradient(1f);
             float mx = x - 0.6f + dw + 1.3f;
             float metaH = 1.9f + 0.35f + 1.0f + 0.35f + 1.3f + 0.6f + 1.7f;
             float my = cy + dayBox - 0.4f - metaH;
@@ -540,7 +549,9 @@ public final class CalendarArt {
         if (p.head) {
             String num = String.valueOf(m + 1);
             if (p.bigMonth) {
+                pen.gradient(0.62f);
                 pen.digits(num, x - 0.3f, cy, 5.5f, f.num(200), 6.4f, ink, 1f, -0.04f, Pen.LEFT);
+                pen.gradient(1f);
                 cy += 5.5f + 0.45f;
                 pen.text(MONTH_EN[m].toUpperCase(), x, cy, 1.15f, f.num(600), 0.95f, ink, 1f, 0.4f, Pen.LEFT);
                 cy += 1.15f + 0.35f;

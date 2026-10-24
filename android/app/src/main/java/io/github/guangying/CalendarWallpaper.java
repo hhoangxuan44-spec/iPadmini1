@@ -43,6 +43,7 @@ public class CalendarWallpaper extends WallpaperService {
         private long fadeStart;
         private String loadingId = "", curId = "";
         private boolean registered;
+        private float xOff = 0.5f;
 
         private final Runnable advanceTask = new Runnable() {
             @Override
@@ -106,11 +107,14 @@ public class CalendarWallpaper extends WallpaperService {
                 Widgets.refreshAll(CalendarWallpaper.this);
                 showCurrent(false);
                 scheduleAdvance();
-                draw();
+                drawFrame();
                 syncLibrary();
-            } else if (registered) {
-                unregisterReceiver(tick);
-                registered = false;
+            } else {
+                main.removeCallbacks(frame);
+                if (registered) {
+                    unregisterReceiver(tick);
+                    registered = false;
+                }
             }
         }
 
@@ -183,7 +187,7 @@ public class CalendarWallpaper extends WallpaperService {
                         if (p.style.equals("gallery") && !p.blur.isEmpty() && Site.ensure(ctx, p.blur)) {
                             blur = WallArt.decode(Library.file(ctx, p.blur), 64, 64);
                         }
-                        if (full != null) frame = WallArt.compose(full, blur, p, pos, w, h);
+                        if (full != null) frame = WallArt.compose(full, blur, p, pos, w, h, ctx.getAssets());
                     }
                     final Bitmap result = frame;
                     main.post(new Runnable() {
@@ -220,6 +224,15 @@ public class CalendarWallpaper extends WallpaperService {
             main.removeCallbacks(frame);
             boolean more = draw();
             if (more) main.postDelayed(frame, FRAME_MS);
+            else if (visible && prefs.motion() && cur != null) main.postDelayed(frame, 400);   // 极慢的推拉：每秒两三帧就够顺
+        }
+
+        /** 翻动桌面页面时，壁纸跟着慢慢平移（比图标慢，有远近感） */
+        @Override
+        public void onOffsetsChanged(float xOffset, float yOffset, float xStep, float yStep, int xPixels, int yPixels) {
+            super.onOffsetsChanged(xOffset, yOffset, xStep, yStep, xPixels, yPixels);
+            xOff = xOffset;
+            if (visible && prefs != null && prefs.motion() && nxt == null) draw();
         }
 
         /** 画一帧；返回淡入淡出是否还没结束 */
@@ -231,15 +244,25 @@ public class CalendarWallpaper extends WallpaperService {
                 c = holder.lockCanvas();
                 if (c == null) return false;
                 c.drawColor(0xFF000000);
-                if (cur != null) c.drawBitmap(cur, 0, 0, null);
+                boolean motion = prefs.motion();
+                float prog = Math.min(1f, (System.currentTimeMillis() - prefs.shownAt()) / (float) (prefs.intervalMinutes() * 60000L));
+                float zoom = motion ? 1.05f + 0.035f * prog : 1f;
+                float shift = motion ? (0.5f - xOff) * width * 0.04f : 0f;
+                c.save();
+                c.translate(width / 2f + shift, height / 2f);
+                c.scale(zoom, zoom);
+                c.translate(-width / 2f, -height / 2f);
+                Paint bp = new Paint(Paint.FILTER_BITMAP_FLAG);
+                if (cur != null) c.drawBitmap(cur, 0, 0, bp);
                 if (nxt != null) {
                     float t = Math.min(1f, (System.currentTimeMillis() - fadeStart) / (float) FADE_MS);
                     float e = t * t * (3 - 2 * t);
-                    Paint p = new Paint();
+                    Paint p = new Paint(Paint.FILTER_BITMAP_FLAG);
                     p.setAlpha(Math.round(255 * e));
                     c.drawBitmap(nxt, 0, 0, p);
                     fading = t < 1f;
                 }
+                c.restore();
                 if (night()) {
                     Paint d = new Paint();
                     d.setColor(0x66000000);

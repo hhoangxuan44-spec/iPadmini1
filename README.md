@@ -88,6 +88,10 @@ APK 由 Actions 在每次发布时自动打包（`android/`，Java，无第三�
 
 组件的绘制代码在 `android/app/src/main/java/io/github/guangying/render/`。`android/tools/render-test/` 是一套在电脑上预览组件的测试（Robolectric，不需要手机）：`android/tools/render-test/run.sh WidgetRenderTest`，生成的各种风格、各种尺寸的组件图片在 `/tmp/render-out`。
 
+## 设计
+
+材质、光影、层次与交互的设计规范见 [DESIGN.md](DESIGN.md)。
+
 ## 操作
 
 | 操作 | 效果 |
@@ -128,7 +132,7 @@ cd dist && python3 -m http.server 8000
 
 ```
 index.html               页面
-css/wall.css             样式（五种日历风格、玻璃、推拉动画、竖屏适配）
+css/wall.css             样式（八种日历风格、材质层、光影、翻页与动效、竖屏适配）
 js/wall.js               主程序（轮播、月历、手势、老设备省电模式）
 js/lunar.js              农历、节气、节日
 js/mottos.js             每日一言

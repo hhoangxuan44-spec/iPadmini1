@@ -62,6 +62,28 @@ public final class Look {
         return style.equals("paper") || style.equals("vpoem") || !light ? 0xFFFFFFFF : 0xFF1D1D1F;
     }
 
+    /** 组件所在位置的大致中心（占整屏的比例） */
+    static float[] center(String pos) {
+        switch (pos) {
+            case "tr": return new float[]{.82f, .26f};
+            case "bl": return new float[]{.18f, .74f};
+            case "br": return new float[]{.82f, .74f};
+            case "l": return new float[]{.15f, .5f};
+            case "r": return new float[]{.85f, .5f};
+            case "b": return new float[]{.5f, .85f};
+            default: return new float[]{.18f, .26f};
+        }
+    }
+
+    /** 从组件指向光源的单位向量（总带一点来自上方的天光），和网页的 litAt 一致 */
+    public float[] lightDir() {
+        float[] c = center(pos);
+        float vx = photo.lx - c[0], vy = Math.min(photo.ly, 0.6f) - c[1] - 0.3f;
+        float len = (float) Math.sqrt(vx * vx + vy * vy);
+        if (len < 0.07f) return new float[]{-0.45f, -0.89f};
+        return new float[]{vx / len, vy / len};
+    }
+
     public boolean leftAligned() {
         return !pos.endsWith("r");
     }
@@ -71,6 +93,12 @@ public final class Look {
     public static int withAlpha(int color, float alpha) {
         return Color.argb(Math.round(255 * Math.max(0, Math.min(1, alpha)) * Color.alpha(color) / 255f),
                 Color.red(color), Color.green(color), Color.blue(color));
+    }
+
+    public static int mix(int a, int b, float t) {
+        return Color.rgb(Math.round(Color.red(a) + (Color.red(b) - Color.red(a)) * t),
+                Math.round(Color.green(a) + (Color.green(b) - Color.green(a)) * t),
+                Math.round(Color.blue(a) + (Color.blue(b) - Color.blue(a)) * t));
     }
 
     public static int withLightness(int color, float l) {

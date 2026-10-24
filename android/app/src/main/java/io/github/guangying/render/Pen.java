@@ -19,6 +19,7 @@ public final class Pen {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.SUBPIXEL_TEXT_FLAG);
     private float shR, shDy;
     private int shColor;
+    private float gradFade = 1f;
 
     public Pen(Canvas c, float u) {
         this.c = c;
@@ -37,6 +38,11 @@ public final class Pen {
         shR = radiusRem;
         shDy = dyRem;
         shColor = color;
+    }
+
+    /** 大号数字的渐变：顶部原色，底部渐淡到 fade（0-1）倍的不透明度；1 表示不用渐变 */
+    public void gradient(float fade) {
+        gradFade = fade;
     }
 
     public void noShadow() {
@@ -90,6 +96,12 @@ public final class Pen {
         if (c == null || s.isEmpty()) return w;
         Paint p = textPaint(tf, size, color, alpha, spacing);
         float base = (top + lineH / 2f + 0.36f * size) * u;
+        if (gradFade < 1f) {
+            int c0 = Look.withAlpha(color, alpha), c1 = Look.withAlpha(color, alpha * gradFade);
+            p.setShader(new android.graphics.LinearGradient(0, base - 0.74f * size * u, 0, base, c0, c1,
+                    android.graphics.Shader.TileMode.CLAMP));
+            p.clearShadowLayer();
+        }
         float left = align == LEFT ? x : align == CENTER ? x - w / 2 : x - w;
         if (spacing != 0 && align != LEFT) left += spacing * size * (align == RIGHT ? 1 : 0.5f);
         c.drawText(s, left * u, base, p);

@@ -21,6 +21,9 @@ public final class Photo {
     public String ink = "light";
     public int accent = 0xFFFFD60A;
     public int bg = 0xFF111111;
+    /** 画面里的光（构建时分析）：光源位置 0-1、方向性、高光色、阴影色 */
+    public float lx = 0.32f, ly = 0.08f, lk = 0.45f;
+    public int hl = 0xFFFFF0DC, sh = 0xFF10101A;
     /** 各位置的「繁忙度百分位」（0 最安静）和亮度（0-255），位置：tl tr bl br l r b */
     public final Map<String, int[]> quiet = new HashMap<>();
 
@@ -60,6 +63,14 @@ public final class Photo {
             p.ink = t.optString("ink", p.ink);
             p.accent = color(t.optString("accent"), p.accent);
             p.bg = color(t.optString("bg"), p.bg);
+        }
+        JSONArray lt = o.optJSONArray("L");
+        if (lt != null && lt.length() >= 5) {
+            p.lx = (float) lt.optDouble(0, p.lx);
+            p.ly = (float) lt.optDouble(1, p.ly);
+            p.lk = (float) lt.optDouble(2, p.lk);
+            p.hl = color(lt.optString(3), p.hl);
+            p.sh = color(lt.optString(4), p.sh);
         }
         JSONObject q = o.optJSONObject("q");
         if (q != null) {

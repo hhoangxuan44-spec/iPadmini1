@@ -41,7 +41,7 @@ public final class Preview {
             if (p.style.equals("gallery") && !p.blur.isEmpty() && Site.ensure(ctx, p.blur)) {
                 blur = WallArt.decode(Library.file(ctx, p.blur), 64, 64);
             }
-            if (full != null) out = WallArt.compose(full, blur, p, pos, w, h);
+            if (full != null) out = WallArt.compose(full, blur, p, pos, w, h, ctx.getAssets());
         }
         if (out == null) {
             out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);

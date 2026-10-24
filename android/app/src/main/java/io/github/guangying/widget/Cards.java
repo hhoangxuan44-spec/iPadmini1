@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.RemoteViews;
 
 import io.github.guangying.R;
+import io.github.guangying.render.Lighting;
 import io.github.guangying.render.Look;
 
 /**
@@ -38,22 +39,26 @@ final class Cards {
                     v.setViewVisibility(R.id.fill, View.VISIBLE);
                     v.setInt(R.id.fill, "setBackgroundColor", L.light ? 0xE016181F : 0xE6FFFFFF);
                 }
-                layer(v, R.id.sheen, L.light ? R.drawable.sheen_glass_light : R.drawable.sheen_glass_dark);
-                grain(v, 0.09f);
+                bitmap(v, R.id.sheen, Lighting.light(L, Lighting.GLASS));
+                tex(v, R.drawable.tile_grain, 0.55f);
+                bitmap(v, R.id.scrim, Lighting.rim(L, Lighting.GLASS));
                 layer(v, R.id.border, R.drawable.border_glass);
                 break;
             case "paper":
             case "vpoem":
                 v.setViewVisibility(R.id.fill, View.VISIBLE);
                 v.setInt(R.id.fill, "setBackgroundColor", L.bg);
-                layer(v, R.id.sheen, R.drawable.sheen_paper);
-                grain(v, 0.2f);
+                bitmap(v, R.id.sheen, Lighting.light(L, Lighting.PAPER));
+                tex(v, R.drawable.tile_paper, 1f);
+                bitmap(v, R.id.scrim, Lighting.rim(L, Lighting.PAPER));
                 layer(v, R.id.border, st.equals("vpoem") ? R.drawable.border_ruled : R.drawable.border_paper);
                 break;
             case "gallery":
                 if (story) {
                     v.setViewVisibility(R.id.fill, View.VISIBLE);
-                    v.setInt(R.id.fill, "setBackgroundColor", 0xF0FAF6EE);
+                    v.setInt(R.id.fill, "setBackgroundColor", 0xFFFAF6EE);
+                    tex(v, R.drawable.tile_paper, 0.8f);
+                    bitmap(v, R.id.scrim, Lighting.rim(L, Lighting.PAPER));
                 } else {
                     if (backdrop != null) {
                         v.setViewVisibility(R.id.backdrop, View.VISIBLE);
@@ -61,14 +66,17 @@ final class Cards {
                     }
                     v.setViewVisibility(R.id.fill, View.VISIBLE);
                     v.setInt(R.id.fill, "setBackgroundColor", Look.withAlpha(L.bg, backdrop != null ? 0.72f : 0.8f));
-                    grain(v, 0.1f);
+                    bitmap(v, R.id.sheen, Lighting.light(L, Lighting.PLAQUE));
+                    tex(v, R.drawable.tile_plaster, 0.9f);
+                    bitmap(v, R.id.scrim, Lighting.rim(L, Lighting.PLAQUE));
                     layer(v, R.id.border, R.drawable.border_plaque);
                 }
                 break;
             case "band":
                 v.setViewVisibility(R.id.fill, View.VISIBLE);
                 v.setInt(R.id.fill, "setBackgroundColor", Look.withAlpha(L.bg, 0.94f));
-                grain(v, 0.1f);
+                tex(v, R.drawable.tile_brushed, 0.6f);
+                bitmap(v, R.id.sheen, Lighting.light(L, Lighting.BAND));
                 v.setViewVisibility(R.id.line, View.VISIBLE);
                 v.setInt(R.id.line, "setBackgroundColor", L.accent);
                 break;
@@ -78,6 +86,7 @@ final class Cards {
                     int res = L.light ? (left ? R.drawable.scrim_left_dark : R.drawable.scrim_right_dark)
                             : (left ? R.drawable.scrim_left_light : R.drawable.scrim_right_light);
                     layer(v, R.id.scrim, res);
+                    tex(v, R.drawable.tile_grain, 0.35f);
                 }
                 break;
             default:
@@ -95,8 +104,14 @@ final class Cards {
         v.setInt(id, "setBackgroundResource", drawable);
     }
 
-    private static void grain(RemoteViews v, float alpha) {
+    private static void tex(RemoteViews v, int tile, float alpha) {
         v.setViewVisibility(R.id.tex, View.VISIBLE);
+        v.setInt(R.id.tex, "setBackgroundResource", tile);
         v.setFloat(R.id.tex, "setAlpha", alpha);
+    }
+
+    private static void bitmap(RemoteViews v, int id, Bitmap bm) {
+        v.setViewVisibility(id, View.VISIBLE);
+        v.setImageViewBitmap(id, bm);
     }
 }

@@ -30,6 +30,15 @@ public final class Prefs {
         return sp.getInt("interval", 5);
     }
 
+    /** 壁纸的缓慢推拉与翻页视差 */
+    public boolean motion() {
+        return sp.getBoolean("motion", true);
+    }
+
+    public void setMotion(boolean on) {
+        sp.edit().putBoolean("motion", on).apply();
+    }
+
     public boolean nightDim() {
         return sp.getBoolean("night", true);
     }

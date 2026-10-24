@@ -176,6 +176,14 @@ public class MainActivity extends Activity implements Wall.Listener {
         side.addView(hint("壁纸会优先挑这个位置画面安静的图片，文字深浅也按这里的明暗决定。"));
         updateChips();
 
+        final TextView motionBtn = button("", false, null);
+        motionBtn.setOnClickListener(v -> {
+            prefs.setMotion(!prefs.motion());
+            motionBtn.setText(prefs.motion() ? "壁纸缓慢推拉与视差：开" : "壁纸缓慢推拉与视差：关");
+        });
+        motionBtn.setText(prefs.motion() ? "壁纸缓慢推拉与视差：开" : "壁纸缓慢推拉与视差：关");
+        side.addView(motionBtn);
+        side.addView(hint("壁纸在 5 分钟里极缓慢地推近，翻桌面页面时跟着平移，让图片和桌面图标之间有远近感；怕费电可以关掉。"));
         side.addView(button("换下一张", false, v -> next()));
         side.addView(gap(10));
         side.addView(button("全屏摆件模式", false, v -> startActivity(new Intent(this, FullActivity.class))));
