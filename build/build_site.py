@@ -416,37 +416,36 @@ def build_local(outdir):
 
 
 def build_fake(n, outdir):
-    """离线调试用：程序化生成“日落山景”。"""
-    rnd = random.Random(7)
+    """离线调试用：程序化生成的「照片」和「画作」（见 fake_scenes.py），覆盖明亮、昏暗、横幅、竖幅等情况。"""
+    try:
+        import fake_scenes
+    except ImportError:  # 没有 numpy：退回最简单的山景
+        fake_scenes = None
+    descs = [
+        "海拔五千多米的山口，冰川湖静卧在积雪的乱石之间。",
+        "从布罗莫火山口边缘望去，巴托克山布满放射状的沟壑。晨光斜照，像一座被雕刻过的金色金字塔。",
+        "石英砂岩被流水与风雨切割了亿万年，留下成千上万根拔地而起的石柱。云雾漫过时，峰林像一座漂浮的城，"
+        "站在观景台上，能听见很远处的瀑布声，也能看见山谷里缓缓移动的云影。",
+    ]
+    poems = [("东临碣石，以观沧海。水何澹澹，山岛竦峙。", "曹操《观沧海》"), ("海日生残夜，江春入旧年。", "王湾《次北固山下》"),
+             ("大漠孤烟直，长河落日圆。", "王维《使至塞上》"), None, ("空山新雨后，天气晚来秋。", "王维《山居秋暝》")]
     entries = []
     for i in range(n):
-        W, H = 2048, 1365
-        top = [rnd.randint(10, 120) for _ in range(3)]
-        bot = [rnd.randint(150, 255), rnd.randint(80, 200), rnd.randint(40, 160)]
-        img = Image.new("RGB", (W, H))
-        d = ImageDraw.Draw(img)
-        for y in range(H):
-            t = y / H
-            d.line([(0, y), (W, y)], fill=tuple(int(top[k] + (bot[k] - top[k]) * t) for k in range(3)))
-        sx, sy = rnd.randint(300, W - 300), rnd.randint(300, 700)
-        d.ellipse([sx - 90, sy - 90, sx + 90, sy + 90], fill=(255, 236, 200))
-        for layer in range(4):
-            base = 650 + layer * 160
-            shade = tuple(int(c * (0.55 - layer * 0.12)) for c in bot)
-            pts = [(0, H)]
-            x = 0
-            while x <= W:
-                pts.append((x, base + rnd.randint(-160, 120)))
-                x += rnd.randint(120, 260)
-            pts += [(W, H)]
-            d.polygon(pts, fill=shade)
-        img = img.filter(ImageFilter.GaussianBlur(1.2))
+        if fake_scenes:
+            fn, args, kind, title, sub, tags = fake_scenes.SCENES[i % len(fake_scenes.SCENES)]
+            args = (args[0] + 100 * (i // len(fake_scenes.SCENES)),) + tuple(args[1:])
+            img = fn(*args)
+            if i >= len(fake_scenes.SCENES):
+                title = "%s %d" % (title, i // len(fake_scenes.SCENES) + 1)
+        else:
+            img = Image.new("RGB", (2048, 1365), (90, 80, 120))
+            kind, title, sub, tags = "nature", "测试风景 %d" % (i + 1), "离线测试", ["dusk"]
         e = save_versions(img, "fake%02d" % i, outdir)
-        kind = ["nature", "nature", "sky", "east", "nature", "west", "animal", "nature"][i % 8]
-        e.update({"kind": kind, "title": "测试风景 %d" % (i + 1), "sub": "离线测试 · 程序生成",
-                  "desc": '从海拔五千多米的乔拉山口下行，冰川湖静卧在积雪的乱石之间。远处的阿玛达布拉姆峰，被登山者称作“母亲的项链”。',
-                  "poem": ['东临碣石，以观沧海。水何澹澹，山岛竦峙。', '曹操《观沧海》'] if i % 2 == 0 or kind in ("east", "west") else None,
-                  "tags": [["winter"], ["night", "stars"], ["dawn"], ["summer"]][i % 4],
+        poem = poems[i % len(poems)]
+        if kind in ("east", "west") and not poem:
+            poem = poems[0]
+        e.update({"kind": kind, "title": title, "sub": sub, "desc": descs[i % 3],
+                  "poem": list(poem) if poem else None, "tags": tags,
                   "artist": "Generated", "license": "CC0", "page": ""})
         entries.append(e)
     return entries

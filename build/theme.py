@@ -81,7 +81,49 @@ def analyze(img):
         if score > best_score:
             best_score, best = score, (h, l, s)
     sat = ImageStat.Stat(hsv.split()[1]).mean[0] / 255.0
-    return {"regions": feats, "dominant": dominant, "vivid": best, "sat": sat}
+    return {"regions": feats, "dominant": dominant, "vivid": best, "sat": sat, "light": analyze_light(crop)}
+
+
+def analyze_light(crop):
+    """
+    画面里的「光」：光源位置、强弱、高光颜色、阴影颜色。
+    日历卡片的投影方向、边缘高光、阴影着色都按它来，让卡片像真的放在这张照片的光线里。
+      lx, ly  光源在画面中的位置（0-1，取模糊后最亮的那一处：太阳、月亮、天光）
+      k       光的方向性（0 几乎是漫射光，1 是一盏很亮的灯）
+      hl      高光颜色（最亮的那部分画面的颜色，向白色靠拢）
+      sh      阴影颜色（最暗的那部分画面的颜色，压深）
+    """
+    small = crop.resize((64, 48), Image.LANCZOS)
+    blur = small.filter(ImageFilter.GaussianBlur(3)).convert("L")
+    w, h = blur.size
+    data = list(blur.getdata())
+    peak = max(data)
+    pi = data.index(peak)
+    lx, ly = (pi % w + 0.5) / w, (pi // w + 0.5) / h
+    # 峰值附近有一片差不多亮的区域时，取它们的重心，避免光源落在某个孤立的亮点上
+    near = [(i, v) for i, v in enumerate(data) if v >= peak - 6]
+    tw = sum(v - peak + 7 for _, v in near)
+    lx = sum(((i % w + 0.5) / w) * (v - peak + 7) for i, v in near) / tw
+    ly = sum(((i // w + 0.5) / h) * (v - peak + 7) for i, v in near) / tw
+    mean = sum(data) / len(data)
+    k = max(0.12, min(1.0, (peak - mean) / 120.0))
+
+    px = list(small.getdata())
+    lum = [0.299 * r + 0.587 * g + 0.114 * b for r, g, b in px]
+    order = sorted(range(len(px)), key=lambda i: lum[i])
+    n = len(order)
+
+    def avg(ids):
+        return tuple(sum(px[i][c] for i in ids) / max(1, len(ids)) for c in range(3))
+
+    bright = avg(order[int(n * 0.96):])
+    dark = avg(order[:int(n * 0.28)])
+    m = max(bright) or 1.0
+    hl = tuple(min(255, c * 255.0 / m) for c in bright)          # 亮度拉满，只保留色相
+    hl = tuple(c * 0.62 + 255 * 0.38 for c in hl)                # 向白色靠拢
+    dm = max(dark)
+    sh = tuple(c * (46.0 / dm if dm > 46 else 1.0) * 0.8 for c in dark)   # 压到很深，但留着一点色
+    return {"x": lx, "y": ly, "k": k, "hl": _hex(hl), "sh": _hex(sh)}
 
 
 def _accent(vivid, light_text):
@@ -161,6 +203,9 @@ def assign(items):
     _quiet_map(items)
     for it in items:
         it["theme"] = _theme_for(it)
+        lt = it["feat"].get("light")
+        if lt:
+            it["L"] = [round(lt["x"], 2), round(lt["y"], 2), round(lt["k"], 2), lt["hl"], lt["sh"]]
 
 
 def _quiet_map(items):

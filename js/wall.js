@@ -3,10 +3,14 @@
  * 只使用 ES5 + 带前缀的 CSS，保证 iPad mini 1（iOS 9.3.5 Safari）可用。
  *
  * 每张图片自带一套「日历主题」（构建时分析得出，见 build/theme.py）：
- *   t.style  minimal 极简 / glass 玻璃 / magazine 杂志 / band 色带 / paper 宣纸
+ *   t.style  minimal 极简 / glass 玻璃 / magazine 杂志 / band 色带 / poster 海报 / paper 宣纸 / gallery 画廊 / vpoem 诗笺
  *   t.pos    tl tr bl br（角落）· l r（侧栏）· b（底部）
  *   t.ink    light 浅色字 / dark 深色字
  *   t.accent 点缀色；t.bg 色带或纸张颜色
+ *   p.L      画面里的光：[光源 x, 光源 y, 方向性, 高光色, 阴影色]
+ *
+ * 光影：所有卡片的投影方向、边缘高光、阴影颜色都由这张照片的光决定（applyLight），
+ * 像是真的把一块玻璃、一张纸放进了这张照片的光线里。
  */
 (function () {
   'use strict';
@@ -36,6 +40,8 @@
   var WALL = APP === 'wall';
   var INSET_T = +param('it') || 0, INSET_B = +param('ib') || 0;
   var hiDPI = !LITE && (!!APP || Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 1400);
+  // 动态光影：触摸时的光斑与倾斜、视差、定时扫过的高光、数字滚动、月历翻页。老设备和壁纸模式不开。
+  var DYN = !LITE && !WALL && !/[?&]fx=0/.test(location.search);
 
   // ------------------------------------------------------------ 小工具
   function $(id) { return document.getElementById(id); }
@@ -61,6 +67,55 @@
   }
   function minutesOf(hhmm) { var p = String(hhmm).split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
   function setTransform(e, t) { e.style.webkitTransform = t; e.style.transform = t; }
+  function setTransition(e, t) { e.style.webkitTransition = t; e.style.transition = t; }
+  function closest(e, cls) { while (e && e !== document) { if (e.className && hasClass(e, cls)) return e; e = e.parentNode; } return null; }
+  var raf = window.requestAnimationFrame || window.webkitRequestAnimationFrame || function (f) { return setTimeout(f, 16); };
+
+  // ------------------------------------------------------------ 颜色与光
+  function hex2rgb(h) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(h || '');
+    if (!m) return [255, 255, 255];
+    var n = parseInt(m[1], 16);
+    return [n >> 16, (n >> 8) & 255, n & 255];
+  }
+  function rgba(c, a) {
+    return 'rgba(' + Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]) + ',' + (Math.round(a * 1000) / 1000) + ')';
+  }
+  function mixc(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]; }
+  function n2(n) { return Math.round(n * 100) / 100; }
+  var DEFAULT_L = [0.32, 0.08, 0.45, '#fff0dc', '#10101a'];
+
+  /**
+   * 在 (cx, cy)（相对于整张壁纸）这个位置上看到的光：
+   *   d  指向光源的单位向量（光总是带一点来自上方的天光）
+   *   k  光的方向性 0-1
+   *   hl 高光色；sh 阴影色；wh 偏白的高光色
+   */
+  function litAt(s, cx, cy) {
+    var L = s._p.L || DEFAULT_L;
+    var lx = L[0] * W, ly = Math.min(L[1], 0.6) * H;
+    var vx = (lx - cx) / W, vy = (ly - cy) / H - 0.3;
+    var len = Math.sqrt(vx * vx + vy * vy);
+    var d = len < 0.07 ? [-0.45, -0.89] : [vx / len, vy / len];
+    var hl = hex2rgb(L[3]);
+    return { d: d, k: L[2], hl: hl, sh: hex2rgb(L[4]), wh: mixc(hl, [255, 255, 255], 0.55) };
+  }
+  // 渐变的方向：从受光的一侧指向背光的一侧
+  function gradAngle(d) { return Math.round(Math.atan2(-d[0], d[1]) * 180 / Math.PI); }
+
+  // 投影：贴地的接触阴影 + 顺光的投射阴影 + 很大的环境阴影；颜色取这张照片最暗处的颜色
+  function shadowStack(li, elev, strength) {
+    var d = li.d, k = li.k, g = strength || 1;
+    var reach = elev * (0.5 + 0.55 * k);
+    var ox = -d[0] * reach, oy = -d[1] * reach + elev * 0.3;
+    var blur = elev * (1.75 - 0.55 * k);
+    return [
+      '0 .05rem .12rem ' + rgba(li.sh, 0.5 * g),
+      n2(ox * 0.45) + 'rem ' + n2(oy * 0.45) + 'rem ' + n2(blur * 0.4) + 'rem ' + rgba(li.sh, 0.4 * g),
+      n2(ox) + 'rem ' + n2(oy) + 'rem ' + n2(blur) + 'rem ' + n2(-elev * 0.3) + 'rem ' + rgba(li.sh, (0.46 + 0.18 * k) * g),
+      '0 ' + n2(elev * 1.5) + 'rem ' + n2(elev * 3) + 'rem ' + n2(-elev * 0.9) + 'rem rgba(0,0,0,' + n2(0.3 * g) + ')'
+    ].join(',');
+  }
 
   // ------------------------------------------------------------ 尺寸
   var W = 0, H = 0, PORTRAIT = false;
@@ -108,10 +163,20 @@
     return '<div class="motto">' + esc(m[0]) + '<span>' + esc(m[1]) + '</span></div>';
   }
 
+  // 数字一位一格，换分钟时只有变了的那一位滚动
+  function dg(ch) { return '<span class="dg"><i>' + ch + '</i></span>'; }
   function timeHTML(now) {
     var h = now.getHours();
-    var hs = cfg.use24h === false ? (h % 12 || 12) : pad(h);
-    return '<div class="time num">' + hs + '<span class="colon">:</span>' + pad(now.getMinutes()) + '</div>';
+    var hs = cfg.use24h === false ? String(h % 12 || 12) : pad(h);
+    var mm = pad(now.getMinutes());
+    var hh = '';
+    for (var i = 0; i < hs.length; i++) hh += dg(hs.charAt(i));
+    return '<div class="time num">' + hh + '<span class="colon">:</span>' + dg(mm.charAt(0)) + dg(mm.charAt(1)) + '</div>';
+  }
+  function timeDigits(now) {
+    var h = now.getHours();
+    var hs = cfg.use24h === false ? String(h % 12 || 12) : pad(h);
+    return (hs + pad(now.getMinutes())).split('');
   }
 
   // 时钟块：不同风格用不同的版式
@@ -157,8 +222,9 @@
       var wd = date.getDay();
       if (wd === 0 || wd === 6) cls += ' we';
       if (sub.fest) cls += ' fest';
-      if (sameDay(date, today)) cls += ' today';
-      html += '<i class="' + cls + '"><b class="num">' + d + '</b><s>' + esc(sub.text) + '</s></i>';
+      var isToday = sameDay(date, today);
+      if (isToday) cls += ' today';
+      html += '<i class="' + cls + '">' + (isToday ? '<u></u>' : '') + '<b class="num">' + d + '</b><s>' + esc(sub.text) + '</s></i>';
     }
     return html + '</div>';
   }
@@ -200,28 +266,65 @@
     return new Date(t.getFullYear(), t.getMonth() + monthOffset, 1);
   }
 
+  // 调试：?style=glass 把当前图片强行换成某种风格（位置、颜色按风格补全）
+  function forceStyle(t, style) {
+    var o = {}, k;
+    for (k in t) if (t.hasOwnProperty(k)) o[k] = t[k];
+    o.style = style;
+    var side = t.pos === 'l' || t.pos === 'r';
+    if (style === 'magazine' || style === 'vpoem' || style === 'gallery') o.pos = side ? t.pos : (/r/.test(t.pos) ? 'r' : 'l');
+    else if (style === 'band') o.pos = 'b';
+    else if (t.pos.length !== 2) o.pos = 'tl';
+    if (style === 'paper' || style === 'vpoem') { o.bg = '#f1eada'; o.ink = 'dark'; o.accent = '#b23a2e'; }
+    if (style === 'band' && t.style !== 'band') { o.bg = '#2a3350'; o.ink = 'light'; }
+    if (style === 'gallery') { o.bg = '#2a2420'; o.ink = 'light'; }
+    return o;
+  }
+  var FORCE = param('style');
+
+  // 材质层：贴图、光、边缘、触摸光斑、定时扫过的高光。各风格的样子由 CSS 决定，方向和颜色由 applyLight 填
+  function layers(parent) {
+    el('div', 'm-tex', parent);
+    el('div', 'm-light', parent);
+    el('div', 'm-spot', parent);
+    el('div', 'm-sweep', parent);
+  }
+
   function buildSlide(p) {
     var t = p.t || { style: 'glass', pos: 'br', ink: 'light', accent: '#ffd60a' };
+    if (FORCE && /^(minimal|glass|magazine|band|poster|paper|gallery|vpoem)$/.test(FORCE)) t = forceStyle(t, FORCE);
     var now = new Date();
     var vm = viewMonth();
-    var cls = 'slide st-' + t.style + ' pos-' + t.pos + ' ink-' + t.ink + ' k-' + (p.kind || 'nature');
+    var cls = 'slide st-' + t.style + ' pos-' + t.pos + ' ink-' + t.ink + ' k-' + (p.kind || 'nature') + (DYN ? ' dyn' : '');
     var s = el('div', cls);
     s._p = p;
     s._t = t;
 
-    var ph = el('div', 'photo', s);
+    // 第 0 层：远景（照片、暗角、光晕、颗粒）
+    var bg = el('div', 'pl pl-bg', s);
+    s._bgEl = bg;
+    var ph = el('div', 'photo', bg);
     ph.style.backgroundColor = t.bg || '#111';
     s._photoEl = ph;
     s._fullEl = ph;
-    var shade = el('div', 'shade', s);
+    var shade = el('div', 'shade', bg);
+    if (t.style === 'gallery') el('div', 'wall-tex', bg);
+    s._atmos = el('div', 'atmos', bg);
 
     if (t.style === 'gallery') {
-      // 画廊：墙面是同一幅画的模糊放大，画作完整挂在墙上（卡纸 + 画框）
+      // 画廊：墙面是同一幅画的模糊放大，画作完整挂在墙上（线脚画框 + 卡纸 + 玻璃）
       if (p.b) ph.style.backgroundImage = 'url("' + p.b + '")';
       shade.style.backgroundColor = t.bg || '#151515';
-      var art = el('div', 'art', s);
+      var plArt = el('div', 'pl pl-art', s);
+      s._artPlane = plArt;
+      var art = el('div', 'art', plArt);
       s._artEl = art;
-      s._fullEl = el('div', 'art-img', art);
+      el('div', 'art-rim', art);
+      var mat = el('div', 'art-mat', art);
+      var pic = el('div', 'art-img', mat);
+      s._fullEl = pic;
+      el('div', 'art-glare', pic);
+      el('div', 'art-shine', pic);
     } else if (!LITE && !WALL && cfg.kenBurns !== false) {
       // 推拉动画在这页真正露出来时才开始（见 startKenBurns）
       s._kb = ' kb kb' + (1 + Math.floor(Math.random() * 4));
@@ -230,26 +333,51 @@
     }
 
     // 日历与说明放在 ui 层里；App 里 ui 层会让开状态栏和 Dock
-    var ui = el('div', 'ui', s);
+    var ui = el('div', 'pl ui', s);
     ui.style.top = INSET_T + 'px';
     ui.style.bottom = INSET_B + 'px';
     s._ui = ui;
-    var panel = el('div', 'panel' + (t.style === 'glass' ? ' glass' : ''), ui);
-    if (t.style === 'band' || t.style === 'paper' || t.style === 'vpoem') {
-      el('div', 'panel-bg', panel).style.backgroundColor = t.bg;
+    var tilt = el('div', 'tilt', ui);
+    var glass = t.style === 'glass';
+    var panel = el('div', 'panel' + (glass ? ' glass' : ''), tilt);
+    var plate = null;
+    if (glass) {
+      plate = el('div', 'glass-clip', panel);
+      el('div', 'glass-bg', plate);
+      layers(plate);
+      el('div', 'm-rim', panel);
+    } else if (t.style === 'band' || t.style === 'paper' || t.style === 'vpoem') {
+      plate = el('div', 'panel-bg', panel);
+      plate.style.backgroundColor = t.bg;
+      layers(plate);
+      el('div', 'm-rim', panel);
     }
     var inner = el('div', 'panel-in', panel);
+    if (t.style === 'vpoem') el('div', 'rod', panel);
     if (p.kind === 'east' || t.style === 'vpoem') {
       el('div', 'seal', inner, NUM_CN[vm.getMonth()].split('').join('<br>') + '<br>月');
     }
     if (t.style === 'vpoem' && p.poem) el('div', 'vp', inner, verticalHTML(p));
     el('div', 'b-clock', inner, clockHTML(now, t.style));
-    el('div', 'b-month', inner, monthHTML(vm.getFullYear(), vm.getMonth(), now));
+    var bm = el('div', 'b-month', inner);
+    el('div', 'mpage', bm, monthHTML(vm.getFullYear(), vm.getMonth(), now));
     el('div', 'b-story', inner, storyHTML(p));
 
     // 极简 / 玻璃 / 海报 / 诗笺：图片说明放在对角的下方
-    var fl = el('div', 'story-float' + (t.style === 'glass' ? ' glass' : ''), ui);
+    var tilt2 = el('div', 'tilt', ui);
+    var fl = el('div', 'story-float' + (glass ? ' glass' : ''), tilt2);
+    if (glass) {
+      var plate2 = el('div', 'glass-clip', fl);
+      el('div', 'glass-bg', plate2);
+      layers(plate2);
+      el('div', 'm-rim', fl);
+    }
     el('div', 'b-story', el('div', 'panel-in', fl), storyHTML(p, t.style === 'vpoem'));
+
+    // 长按时的画面说明
+    var cap = el('div', 'peek-cap', s);
+    cap.innerHTML = '<b>' + esc(p.title) + '</b>' + (p.sub ? '<i>' + esc(p.sub) + '</i>' : '') +
+      (p.poem && p.poem[0] ? '<p>' + esc(p.poem[0]) + '<span>' + esc(p.poem[1]) + '</span></p>' : '');
 
     paint(s);
     return s;
@@ -257,16 +385,23 @@
 
   // 主题色
   function paint(s) {
-    var a = s._t.accent || '#ffd60a';
-    var i, list = s.querySelectorAll('.acc-bg, .c.today b');
+    var a = s._t.accent || '#ffd60a', ac = hex2rgb(a);
+    var i, list = s.querySelectorAll('.acc-bg, .c.today b, .c.today u');
     for (i = 0; i < list.length; i++) list[i].style.backgroundColor = a;
+    list = s.querySelectorAll('.c.today b');
+    for (i = 0; i < list.length; i++) {
+      list[i].style.boxShadow = '0 .12rem .55rem ' + rgba(ac, 0.55) + ', inset 0 .06rem 0 rgba(255,255,255,.38), inset 0 -.08rem .12rem rgba(0,0,0,.14)';
+    }
     list = s.querySelectorAll('.m-num, .m-names b, .s-sub');
     for (i = 0; i < list.length; i++) list[i].style.color = a;
     list = s.querySelectorAll('.c.fest s');
     for (i = 0; i < list.length; i++) list[i].style.color = a;
     if (s._t.style === 'band') {
       list = s.querySelectorAll('.panel-bg');
-      for (i = 0; i < list.length; i++) list[i].style.borderTopColor = a;
+      for (i = 0; i < list.length; i++) {
+        list[i].style.borderTopColor = a;
+        list[i].style.boxShadow = '0 -.1rem 1.4rem ' + rgba(ac, 0.28);
+      }
     }
   }
 
@@ -278,6 +413,7 @@
   }
 
   // 画廊：在留给画作的区域里，按原比例放下「画 + 卡纸 + 画框」
+  var FRAME = 0.62, MAT = 1.6;
   function layoutArt(s) {
     var a = s._artEl;
     if (!a) return;
@@ -290,17 +426,17 @@
       x0 = s._t.pos === 'l' ? side : 2.6 * rem;
       y0 = 2.6 * rem + INSET_T; aw = W - side - 2.6 * rem; ah = H - INSET_T - INSET_B - 5.2 * rem;
     }
-    var pad = 2 * (1.5 + 0.45) * rem;         // 卡纸 + 画框
+    var padx = 2 * (FRAME + MAT) * rem;       // 画框 + 卡纸
     var ratio = (p.w || 4) / (p.h || 3);
-    var iw = Math.min(aw - pad, (ah - pad) * ratio);
+    var iw = Math.min(aw - padx, (ah - padx) * ratio);
     var ih = iw / ratio;
-    a.style.width = iw + 'px';
-    a.style.height = ih + 'px';
-    a.style.left = (x0 + (aw - iw - pad) / 2) + 'px';
-    a.style.top = (y0 + (ah - ih - pad) / 2) + 'px';
+    a.style.width = (iw + padx) + 'px';
+    a.style.height = (ih + padx) + 'px';
+    a.style.left = (x0 + (aw - iw - padx) / 2) + 'px';
+    a.style.top = (y0 + (ah - ih - padx) / 2) + 'px';
   }
 
-  function layoutSlide(s) { layoutArt(s); layoutGlass(s); }
+  function layoutSlide(s) { layoutArt(s); layoutGlass(s); applyLight(s); }
 
   // 玻璃：在卡片里放一层预模糊的同一张图，与背景对齐
   function layoutGlass(s) {
@@ -310,17 +446,121 @@
     for (var i = 0; i < gs.length; i++) {
       var c = gs[i];
       if (!c.offsetWidth) continue;
-      if (!c._bg) {
-        var clip = el('div', 'glass-clip');
-        c.insertBefore(clip, c.firstChild);
-        c._bg = el('div', 'glass-bg', clip);
-        if (p.b) c._bg.style.backgroundImage = 'url("' + p.b + '")';
+      var bgEl = c.querySelector('.glass-bg');
+      if (!bgEl) continue;
+      if (!bgEl._set) {
+        bgEl._set = true;
+        if (p.b) bgEl.style.backgroundImage = 'url("' + p.b + '")';
       }
-      c._bg.style.left = (g.x - c.offsetLeft - s._ui.offsetLeft) + 'px';
-      c._bg.style.top = (g.y - c.offsetTop - s._ui.offsetTop) + 'px';
-      c._bg.style.width = g.w + 'px';
-      c._bg.style.height = g.h + 'px';
+      bgEl.style.left = (g.x - c.offsetLeft - s._ui.offsetLeft) + 'px';
+      bgEl.style.top = (g.y - c.offsetTop - s._ui.offsetTop) + 'px';
+      bgEl.style.width = g.w + 'px';
+      bgEl.style.height = g.h + 'px';
     }
+  }
+
+  // ------------------------------------------------------------ 光影：按这张照片的光给每块材质上色、投影
+  function applyLight(s) {
+    var t = s._t, st = t.style, ink = t.ink, i;
+    var ui = s._ui;
+    var boxes = s.querySelectorAll('.panel, .story-float');
+    for (i = 0; i < boxes.length; i++) {
+      var c = boxes[i];
+      if (!c.offsetWidth || !c.querySelector('.panel-bg, .glass-clip')) continue;
+      var cx = ui.offsetLeft + c.offsetLeft + c.offsetWidth / 2, cy = ui.offsetTop + c.offsetTop + c.offsetHeight / 2;
+      var li = litAt(s, cx, cy);
+      var light = c.querySelector('.m-light'), rim = c.querySelector('.m-rim');
+      var tl = closest(c, 'tilt');
+      if (tl) tl.style.webkitTransformOrigin = tl.style.transformOrigin = n2(cx) + 'px ' + n2(cy - ui.offsetTop) + 'px';
+      var d = li.d, ang = gradAngle(d);
+      var hx = Math.round(50 + d[0] * 62), hy = Math.round(50 + d[1] * 62);
+      if (hasClass(c, 'glass')) {
+        c.style.boxShadow = shadowStack(li, 1.15, 1);
+        var dark = ink === 'dark';        // 浅色玻璃（深色字）
+        var hw = li.wh;
+        light.style.backgroundImage =
+          'radial-gradient(circle at ' + hx + '% ' + hy + '%, ' + rgba(hw, (dark ? 0.5 : 0.3) * (0.4 + li.k)) + ', ' + rgba(hw, 0) + ' 58%),' +
+          (dark ?
+            'linear-gradient(' + ang + 'deg, rgba(255,255,255,.62), rgba(255,255,255,.36) 55%, ' + rgba(mixc([255, 255, 255], li.sh, 0.25), 0.3) + ')' :
+            'linear-gradient(' + ang + 'deg, ' + rgba(hw, 0.3) + ', ' + rgba(hw, 0.06) + ' 40%, ' + rgba(li.sh, 0.12) + ' 62%, ' + rgba(li.sh, 0.34) + ')');
+        var ra = 0.42 + 0.4 * li.k;
+        rim.style.boxShadow = [
+          'inset ' + n2(-d[0] * 1.3) + 'px ' + n2(-d[1] * 1.3) + 'px 0 0 ' + rgba(hw, ra),
+          'inset ' + n2(d[0] * 1) + 'px ' + n2(d[1] * 1) + 'px 0 0 rgba(255,255,255,' + (dark ? 0.35 : 0.13) + ')',
+          'inset 0 0 0 1px rgba(255,255,255,' + (dark ? 0.4 : 0.1) + ')',
+          'inset ' + n2(-d[0] * 0.7) + 'rem ' + n2(-d[1] * 0.8) + 'rem 1.3rem -.9rem ' + rgba(hw, (dark ? 0.6 : 0.4) * (0.5 + li.k * 0.5)),
+          'inset ' + n2(d[0] * 0.7) + 'rem ' + n2(d[1] * 0.9) + 'rem 1.5rem -1rem ' + rgba(li.sh, dark ? 0.2 : 0.4)
+        ].join(',');
+      } else if (st === 'paper' || st === 'vpoem') {
+        c.style.boxShadow = shadowStack(li, 0.95, 1);
+        light.style.backgroundImage =
+          'radial-gradient(circle at ' + hx + '% ' + hy + '%, rgba(255,252,240,' + n2(0.12 + 0.16 * li.k) + '), rgba(255,252,240,0) 62%),' +
+          'linear-gradient(' + ang + 'deg, rgba(255,250,236,.38), rgba(255,250,236,0) 46%, ' + rgba(mixc([120, 88, 52], li.sh, 0.25), 0.13) + ')';
+        rim.style.boxShadow = [
+          'inset ' + n2(-d[0] * 1.2) + 'px ' + n2(-d[1] * 1.2) + 'px 0 0 rgba(255,253,244,.85)',
+          'inset ' + n2(d[0] * 1) + 'px ' + n2(d[1] * 1.4) + 'px 0 0 ' + rgba(mixc([140, 108, 70], li.sh, 0.2), 0.28),
+          'inset 0 0 2.4rem rgba(138,102,58,.2)'
+        ].join(',');
+      } else if (st === 'band') {
+        light.style.backgroundImage =
+          'linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,.04) 38%, rgba(0,0,0,.0) 55%, rgba(0,0,0,.2)),' +
+          'radial-gradient(ellipse at ' + Math.round(L_(s)[0] * 100) + '% 0%, ' + rgba(li.wh, 0.22 * (0.4 + li.k)) + ', ' + rgba(li.wh, 0) + ' 55%)';
+        rim.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,.28)';
+      }
+    }
+    applyArtLight(s);
+  }
+  function L_(s) { return s._p.L || DEFAULT_L; }
+
+  // 画廊：画框、卡纸、玻璃反光、落在墙上的影子、射灯
+  function applyArtLight(s) {
+    var a = s._artEl;
+    if (!a) return;
+    var cx = a.offsetLeft + a.offsetWidth / 2, cy = a.offsetTop + a.offsetHeight / 2;
+    var li = litAt(s, cx, cy), d = li.d;
+    // 画挂在墙上，离墙很近：影子短而重，朝背光方向
+    a.style.boxShadow = [
+      '0 .05rem .1rem rgba(0,0,0,.6)',
+      n2(-d[0] * 0.35) + 'rem ' + n2(-d[1] * 0.35 + 0.2) + 'rem .5rem ' + rgba(li.sh, 0.55),
+      n2(-d[0] * 1.1) + 'rem ' + n2(-d[1] * 1.1 + 0.7) + 'rem 1.8rem -.1rem ' + rgba(li.sh, 0.55),
+      '0 2.4rem 4.2rem -1.2rem rgba(0,0,0,.55)'
+    ].join(',');
+    var rim = a.querySelector('.art-rim');
+    rim.style.boxShadow = [
+      'inset 0 0 0 1px rgba(0,0,0,.7)',
+      'inset ' + n2(-d[0] * 2) + 'px ' + n2(-d[1] * 2) + 'px 0 1px ' + rgba(mixc(li.wh, [255, 200, 140], 0.5), 0.5),
+      'inset ' + n2(d[0] * 2) + 'px ' + n2(d[1] * 2) + 'px 0 1px rgba(0,0,0,.45)',
+      'inset 0 0 0 .22rem rgba(0,0,0,.18)'
+    ].join(',');
+    var img = a.querySelector('.art-img');
+    // 卡纸压在画上，在画面靠背光一侧投下一道影子
+    img.style.boxShadow = [
+      '0 0 0 .13rem #fbf8f0',
+      '0 0 0 .17rem rgba(60,48,32,.4)',
+      'inset ' + n2(-d[0] * 0.14) + 'rem ' + n2(-d[1] * 0.14) + 'rem .5rem rgba(0,0,0,.45)',
+      'inset 0 0 0 1px rgba(0,0,0,.2)'
+    ].join(',');
+    var glare = a.querySelector('.art-glare');
+    var ang = gradAngle(d);
+    glare.style.backgroundImage =
+      'linear-gradient(' + (ang + 90) + 'deg, rgba(255,255,255,0) 28%, ' + rgba(li.wh, 0.1 + 0.08 * li.k) + ' 38%, rgba(255,255,255,0) 47%, rgba(255,255,255,0) 60%, ' + rgba(li.wh, 0.05) + ' 68%, rgba(255,255,255,0) 76%)';
+    // 墙面的射灯：从画的上方打下来，颜色取这张照片的高光色，偏暖
+    var g = a.offsetLeft + a.offsetWidth / 2, pct = Math.round(g / W * 100);
+    var warm = mixc(li.wh, [255, 226, 180], 0.55);
+    s._atmos.style.backgroundImage =
+      'radial-gradient(ellipse 62% 78% at ' + pct + '% -8%, ' + rgba(warm, 0.3) + ', ' + rgba(warm, 0.08) + ' 55%, ' + rgba(warm, 0) + ' 82%),' +
+      'radial-gradient(ellipse 120% 100% at 50% 40%, rgba(0,0,0,0) 45%, rgba(0,0,0,.42))';
+  }
+
+  // 其余风格的暗角与高光晕：最亮的地方有一团柔和的光，四角略暗
+  function applyAtmos(s) {
+    if (s._t.style === 'gallery') return;
+    var L = L_(s), hl = hex2rgb(L[3]), sh = hex2rgb(L[4]);
+    var east = s._p.kind === 'east' || s._p.kind === 'west';
+    var k = (east ? 0.45 : 1) * (0.5 + 0.5 * L[2]);
+    s._atmos.style.backgroundImage =
+      'radial-gradient(ellipse 46% 52% at ' + Math.round(L[0] * 100) + '% ' + Math.round(L[1] * 100) + '%, ' + rgba(hl, 0.16 * k) + ', ' + rgba(hl, 0) + '),' +
+      'radial-gradient(ellipse 130% 120% at 50% 46%, rgba(0,0,0,0) 56%, ' + rgba(sh, 0.34 * (east ? 0.6 : 1)) + ')';
   }
 
   // ------------------------------------------------------------ 轮播
@@ -449,6 +689,8 @@
     img.src = srcOf(p);
   }
 
+  function prepared(s) { applyAtmos(s); layoutSlide(s); }
+
   // 提前准备下一页，铺在当前页下面（被当前页完全挡住）
   function prepare() {
     if (nxt || preparing || photos.length < 2) return;
@@ -458,7 +700,7 @@
       if (!s) { setTimeout(prepare, 1000); return; }
       toggleClass(s, 'ui-off', true);
       stage.insertBefore(s, cur || null);
-      layoutSlide(s);
+      prepared(s);
       nxt = s;
       if (wantReveal) { wantReveal = false; reveal(); }
     });
@@ -474,11 +716,13 @@
     refreshSlide(s);           // 准备之后可能过了几分钟，先刷新时钟和月历
     shownAt = Date.now();
     startKenBurns(s);
+    resetFx(old);
 
     toggleClass(old, 'boot', false);
     toggleClass(old, 'ui-off', true);                                    // ① 旧日历淡出
     setTimeout(function () { toggleClass(old, 'out', true); }, UI_OUT);  // ② 旧照片淡出
     setTimeout(function () { toggleClass(s, 'ui-off', false); }, UI_OUT + UI_IN_AT); // ③ 新日历浮现
+    setTimeout(function () { sweep(s); }, UI_OUT + UI_IN_AT + 1500);     // ④ 一道光从卡片上掠过
     setTimeout(function () {
       release(old);
       busy = false;
@@ -506,14 +750,25 @@
       // 开场淡入结束后移除动画，否则 animation 的 fill 会锁住 opacity，之后无法淡出
       setTimeout(function () { toggleClass(s, 'boot', false); }, 2000);
       stage.appendChild(s);
-      layoutSlide(s);
+      prepared(s);
       startKenBurns(s);
       cur = s;
       shownAt = Date.now();
       schedule();
       setTimeout(prepare, 3000);
+      setTimeout(function () { sweep(s); }, 2600);
     });
   }
+
+  // ------------------------------------------------------------ 光的动效：定时掠过的高光
+  function sweep(s) {
+    if (!DYN || !s || s !== cur) return;
+    toggleClass(s, 'sweeping', true);
+    setTimeout(function () { toggleClass(s, 'sweeping', false); }, 3200);
+  }
+  (function loop() {
+    setTimeout(function () { sweep(cur); loop(); }, 38000 + Math.random() * 30000);
+  })();
 
   // ------------------------------------------------------------ 月份切换
   var monthTimer = null;
@@ -526,27 +781,47 @@
     toastTimer = setTimeout(function () { toggleClass(toastEl, 'on', false); }, 1600);
   }
 
-  function refreshSlide(s) {
+  // dir：1 下个月（旧的一页向上翻走）、-1 上个月（新的一页从上面落下）；不给就直接换
+  function refreshSlide(s, dir) {
     if (!s) return;
     var vm = viewMonth(), now = new Date(), i;
     var cs = s.querySelectorAll('.b-clock');
     for (i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now, s._t.style);
-    var ms = s.querySelectorAll('.b-month');
-    for (i = 0; i < ms.length; i++) ms[i].innerHTML = monthHTML(vm.getFullYear(), vm.getMonth(), now);
+    var pages = s.querySelectorAll('.mpage');
+    for (i = 0; i < pages.length; i++) {
+      var pg = pages[i];
+      if (dir && DYN && pg.offsetWidth) flipPage(pg, monthHTML(vm.getFullYear(), vm.getMonth(), now), dir);
+      else pg.innerHTML = monthHTML(vm.getFullYear(), vm.getMonth(), now);
+    }
     var seal = s.querySelector('.seal');
     if (seal) seal.innerHTML = NUM_CN[vm.getMonth()].split('').join('<br>') + '<br>月';
     paint(s);
     layoutSlide(s);
   }
 
-  function renderMonths() {
-    refreshSlide(cur);
+  // 台历翻页：旧的一页以上边为轴向上翻起、变暗、消失，露出下一个月（往回翻则相反）
+  function flipPage(pg, html, dir) {
+    var host = pg.parentNode;
+    var stale = host.querySelectorAll('.mold');
+    for (var i = 0; i < stale.length; i++) host.removeChild(stale[i]);
+    var old = pg.cloneNode(true);
+    old.className = 'mpage mold ' + (dir > 0 ? 'fl-out' : 'fl-under');
+    old.style.width = pg.offsetWidth + 'px';
+    pg.innerHTML = html;
+    el('div', 'm-fold', old);
+    host.insertBefore(old, pg);
+    pg.className = dir > 0 ? 'mpage fl-reveal' : 'mpage fl-in';
+    setTimeout(function () { if (old.parentNode) old.parentNode.removeChild(old); pg.className = 'mpage'; }, 800);
+  }
+
+  function renderMonths(dir) {
+    refreshSlide(cur, dir);
     refreshSlide(nxt);
   }
 
   function shiftMonth(delta) {
     monthOffset = delta === 0 ? 0 : monthOffset + delta;
-    renderMonths();
+    renderMonths(delta);
     var vm = viewMonth();
     toast(monthOffset === 0 ? '本月' : vm.getFullYear() + ' 年 ' + (vm.getMonth() + 1) + ' 月');
     clearTimeout(monthTimer);
@@ -555,24 +830,133 @@
     }
   }
 
-  // ------------------------------------------------------------ 手势
-  var sx = 0, sy = 0, st = 0;
-  document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
-  document.addEventListener('touchstart', function (e) {
-    var t = e.touches[0];
-    sx = t.clientX; sy = t.clientY; st = Date.now();
-  }, false);
-  document.addEventListener('touchend', function (e) {
-    var t = e.changedTouches[0];
-    var dx = t.clientX - sx, dy = t.clientY - sy;
+  // ------------------------------------------------------------ 手势与触摸时的光影
+  //   轻点：换下一张　左右滑：翻月份　按住不动：隐去日历，看画面和说明　按住拖动：卡片跟着手指微微倾斜、光斑跟随手指
+  var sx = 0, sy = 0, st = 0, pressing = false, moved = false, peeked = false, holdTimer = null, px = 0, py = 0;
+  var fxQueued = false;
+
+  function cards(s) { return s ? s.querySelectorAll('.tilt') : []; }
+
+  function fxFrame() {
+    fxQueued = false;
+    if (!cur) return;
+    var nx = (px - W / 2) / (W / 2), ny = (py - H / 2) / (H / 2);
+    // 远景、画作、卡片三层的位移不同，错开的量就是景深
+    setTransform(cur._bgEl, 'translate3d(' + n2(-nx * W * 0.007) + 'px,' + n2(-ny * H * 0.007) + 'px,0) scale(1.03)');
+    if (cur._artPlane) setTransform(cur._artPlane, 'translate3d(' + n2(-nx * W * 0.003) + 'px,' + n2(-ny * H * 0.003) + 'px,0)');
+    setTransform(cur._ui, 'translate3d(' + n2(nx * W * 0.0025) + 'px,' + n2(ny * H * 0.0025) + 'px,0)');
+    var style = cur._t.style, flat = style === 'magazine' || style === 'band' || style === 'minimal' || style === 'poster';
+    var tl = cards(cur), i;
+    for (i = 0; i < tl.length; i++) {
+      var c = tl[i].firstChild;
+      if (!c || !c.offsetWidth) continue;
+      var cx = cur._ui.offsetLeft + c.offsetLeft + c.offsetWidth / 2, cy = cur._ui.offsetTop + c.offsetTop + c.offsetHeight / 2;
+      var dx = Math.max(-1, Math.min(1, (px - cx) / (W * 0.5))), dy = Math.max(-1, Math.min(1, (py - cy) / (H * 0.5)));
+      if (flat) dx = dy = 0;
+      setTransform(tl[i], 'perspective(70rem) rotateX(' + n2(-dy * 2.6) + 'deg) rotateY(' + n2(dx * 2.6) + 'deg)');
+      // 光斑：手指在卡片范围内时，在手指下面亮起一团光
+      var sp = c.querySelector('.m-spot');
+      if (sp) {
+        var lx = px - (cx - c.offsetWidth / 2), ly = py - (cy - c.offsetHeight / 2);
+        var inside = lx >= 0 && ly >= 0 && lx <= c.offsetWidth && ly <= c.offsetHeight;
+        setTransform(sp, 'translate3d(' + n2(lx) + 'px,' + n2(ly) + 'px,0)');
+        sp.style.opacity = inside && pressing ? 1 : 0;
+      }
+    }
+    var sh = cur._artEl && cur._artEl.querySelector('.art-shine');
+    if (sh) {
+      var r = sh.parentNode.getBoundingClientRect();
+      var ix = px - r.left, iy = py - r.top;
+      setTransform(sh, 'translate3d(' + n2(ix) + 'px,' + n2(iy) + 'px,0)');
+      sh.style.opacity = pressing && ix >= 0 && iy >= 0 && ix <= r.width && iy <= r.height ? 1 : 0;
+    }
+  }
+  function queueFx() { if (!DYN || fxQueued) return; fxQueued = true; raf(fxFrame); }
+
+  function resetFx(s) {
+    if (!s || !DYN) return;
+    var all = [s._bgEl, s._ui, s._artPlane], i;
+    for (i = 0; i < all.length; i++) if (all[i]) { setTransition(all[i], ''); setTransform(all[i], all[i] === s._bgEl ? 'scale(1.03)' : ''); }
+    var tl = cards(s);
+    for (i = 0; i < tl.length; i++) setTransform(tl[i], '');
+    var sp = s.querySelectorAll('.m-spot');
+    for (i = 0; i < sp.length; i++) sp[i].style.opacity = 0;
+    var sh = s.querySelectorAll('.art-shine');
+    for (i = 0; i < sh.length; i++) sh[i].style.opacity = 0;
+  }
+
+  function pointerDown(x, y) {
+    sx = px = x; sy = py = y; st = Date.now();
+    pressing = true; moved = false; peeked = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(function () {
+      if (!pressing || moved || !cur) return;
+      peeked = true;
+      toggleClass(cur, 'peek', true);
+    }, 650);
+    if (DYN && cur) {
+      var all = [cur._bgEl, cur._ui, cur._artPlane], i;
+      for (i = 0; i < all.length; i++) if (all[i]) setTransition(all[i], 'none');
+      var tl = cards(cur);
+      for (i = 0; i < tl.length; i++) setTransition(tl[i], 'none');
+      queueFx();
+    }
+  }
+  function pointerMove(x, y) {
+    px = x; py = y;
+    if (pressing && (Math.abs(x - sx) > 10 || Math.abs(y - sy) > 10)) {
+      moved = true;
+      clearTimeout(holdTimer);
+    }
+    queueFx();
+  }
+  function pointerUp(x, y, cancel) {
+    var dx = x - sx, dy = y - sy;
+    clearTimeout(holdTimer);
+    var wasPeek = peeked;
+    pressing = false;
+    if (cur) toggleClass(cur, 'peek', false);
+    if (DYN && cur) {
+      // 松手后慢慢回位
+      var all = [cur._bgEl, cur._ui, cur._artPlane], i;
+      for (i = 0; i < all.length; i++) if (all[i]) setTransition(all[i], '-webkit-transform .9s cubic-bezier(.2,.8,.2,1), transform .9s cubic-bezier(.2,.8,.2,1)');
+      var tl = cards(cur);
+      for (i = 0; i < tl.length; i++) setTransition(tl[i], '-webkit-transform .9s cubic-bezier(.2,.8,.2,1), transform .9s cubic-bezier(.2,.8,.2,1)');
+      px = W / 2; py = H / 2;
+      queueFx();
+    }
+    if (cancel || wasPeek) return;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       shiftMonth(dx < 0 ? 1 : -1);           // 左滑看下个月
     } else if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && Date.now() - st < 600) {
       advance();                             // 轻点换下一张
     }
+  }
+
+  document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
+  document.addEventListener('touchstart', function (e) {
+    var t = e.touches[0];
+    pointerDown(t.clientX, t.clientY);
   }, false);
-  // 电脑浏览器
-  document.addEventListener('click', function () { if (!('ontouchstart' in window)) advance(); }, false);
+  document.addEventListener('touchmove', function (e) {
+    var t = e.touches[0];
+    pointerMove(t.clientX, t.clientY);
+  }, false);
+  document.addEventListener('touchend', function (e) {
+    var t = e.changedTouches[0];
+    pointerUp(t.clientX, t.clientY, false);
+  }, false);
+  document.addEventListener('touchcancel', function (e) {
+    var t = e.changedTouches[0];
+    pointerUp(t.clientX, t.clientY, true);
+  }, false);
+  // 电脑浏览器：鼠标悬停时卡片和光斑跟着走，按住不动看画面，点击换下一张
+  var hasTouch = 'ontouchstart' in window;
+  if (!hasTouch) {
+    document.addEventListener('mousedown', function (e) { pointerDown(e.clientX, e.clientY); }, false);
+    document.addEventListener('mousemove', function (e) { pointerMove(e.clientX, e.clientY); }, false);
+    document.addEventListener('mouseup', function (e) { pointerUp(e.clientX, e.clientY, false); }, false);
+  }
   document.addEventListener('keydown', function (e) {
     if (e.keyCode === 37) shiftMonth(-1);
     if (e.keyCode === 39) shiftMonth(1);
@@ -581,13 +965,40 @@
 
   // ------------------------------------------------------------ 时钟 / 跨天 / 夜间
   var lastMin = -1, lastDay = new Date();
+
+  // 换分钟：只有变了的那一位往上滚一格
+  function rollTime(s, now) {
+    var digits = timeDigits(now);
+    var times = s.querySelectorAll('.time'), i, j;
+    for (i = 0; i < times.length; i++) {
+      var cells = times[i].querySelectorAll('.dg');
+      for (j = 0; j < cells.length && j < digits.length; j++) {
+        var cell = cells[j], oldv = cell.firstChild ? cell.firstChild.textContent : '';
+        if (oldv === digits[j]) continue;
+        if (DYN && s === cur) {
+          cell.innerHTML = '<i class="out">' + oldv + '</i><i class="in">' + digits[j] + '</i>';
+          (function (c, v) { setTimeout(function () { c.innerHTML = '<i>' + v + '</i>'; }, 700); })(cell, digits[j]);
+        } else {
+          cell.innerHTML = '<i>' + digits[j] + '</i>';
+        }
+      }
+    }
+  }
+
   function tick() {
     var now = new Date();
     if (now.getMinutes() !== lastMin) {
+      var first = lastMin < 0;
       lastMin = now.getMinutes();
       if (cur) {
-        var cs = cur.querySelectorAll('.b-clock');
-        for (var i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now, cur._t.style);
+        var first1 = cur.querySelector('.time .dg');
+        var count = cur.querySelectorAll('.time')[0] ? cur.querySelectorAll('.time')[0].querySelectorAll('.dg').length : 0;
+        if (first || !first1 || !sameDay(now, lastDay) || count !== timeDigits(now).length) {
+          var cs = cur.querySelectorAll('.b-clock');
+          for (var i = 0; i < cs.length; i++) cs[i].innerHTML = clockHTML(now, cur._t.style);
+        } else {
+          rollTime(cur, now);
+        }
         if (!sameDay(now, lastDay)) { lastDay = now; renderMonths(); }
         paint(cur);
       }
@@ -642,16 +1053,20 @@
 
   // ------------------------------------------------------------ 启动
   var resizeTimer = null;
+  function relayout() {
+    measure();
+    if (cur) layoutSlide(cur);
+    if (nxt) layoutSlide(nxt);
+  }
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () { measure(); if (cur) layoutSlide(cur); if (nxt) layoutSlide(nxt); }, 80);
+    resizeTimer = setTimeout(relayout, 80);
   }, false);
-  window.addEventListener('orientationchange', function () {
-    setTimeout(function () { measure(); if (cur) layoutSlide(cur); if (nxt) layoutSlide(nxt); }, 400);
-  }, false);
+  window.addEventListener('orientationchange', function () { setTimeout(relayout, 400); }, false);
 
   measure();
   toggleClass(document.body, 'lite', LITE);
+  toggleClass(document.body, 'dyn', DYN);
   if (APP) toggleClass(document.body, 'app-' + APP, true);
   if (!photos.length) {
     toggleClass(document.body, 'empty', true);
