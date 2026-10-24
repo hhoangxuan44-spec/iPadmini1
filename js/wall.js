@@ -1076,12 +1076,23 @@
   toggleClass(document.body, 'lite', LITE);
   toggleClass(document.body, 'dyn', DYN);
   if (APP) toggleClass(document.body, 'app-' + APP, true);
-  if (!photos.length) {
-    toggleClass(document.body, 'empty', true);
-  } else {
+  function start() {
     // ?photo=3 打开指定图片（调试用）
     var m = /[?&]photo=(\d+)/.exec(location.search);
     boot(m ? photos[+m[1] % photos.length] : nextPhoto());
+  }
+  if (!photos.length) {
+    // 图库没加载出来（离线缓存更新到一半等）：绕过缓存再取一次，不行才提示
+    toggleClass(document.body, 'empty', true);
+    var rs = document.createElement('script');
+    rs.src = 'data/photos.js?r=' + Date.now();
+    rs.onload = function () {
+      photos = (window.PHOTOS || []).slice();
+      if (photos.length) { toggleClass(document.body, 'empty', false); start(); }
+    };
+    document.getElementsByTagName('head')[0].appendChild(rs);
+  } else {
+    start();
   }
   tick();
 })();
