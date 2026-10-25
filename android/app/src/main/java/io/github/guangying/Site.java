@@ -187,14 +187,114 @@ public final class Site {
         }
     }
 
-    /** 确保某个文件在本地：没有就下载。返回是否可用。 */
-    public static boolean ensure(Context ctx, String path) {
+    private static final Set<String> inflight = new java.util.HashSet<>();
+
+    /**
+     * 下载一个文件到本地，支持断点续传：网络不稳时下到一半断了，下次接着下，不用从头来。
+     * 先写到 .part，下完再改名；服务器不支持续传时自动从头下。
+     */
+    public static boolean fetchFile(Context ctx, String path, int timeout) {
         File f = new File(root(ctx), path);
         if (f.isFile()) return true;
-        byte[] data = download(BASE + path, 15000);
-        if (data == null) return false;
-        save(f, data);
+        synchronized (inflight) {
+            if (!inflight.add(path)) return waitFor(f);          // 别处正在下同一个文件，等它
+        }
+        try {
+            File dir = f.getParentFile();
+            if (dir != null && !dir.isDirectory() && !dir.mkdirs() && !dir.isDirectory()) return false;
+            File part = new File(f.getPath() + ".part");
+            HttpURLConnection c = null;
+            try {
+                long have = part.isFile() ? part.length() : 0;
+                c = (HttpURLConnection) new URL(BASE + path).openConnection();
+                c.setConnectTimeout(timeout);
+                c.setReadTimeout(timeout);
+                c.setUseCaches(false);
+                if (have > 0) c.setRequestProperty("Range", "bytes=" + have + "-");
+                int code = c.getResponseCode();
+                boolean append = code == 206 && have > 0;
+                if (code == 416) {                                   // 已经下完或文件变了：重来
+                    part.delete();
+                    return false;
+                }
+                if (code != 200 && code != 206) return false;
+                long total = c.getContentLengthLong();
+                try (InputStream in = c.getInputStream(); FileOutputStream out = new FileOutputStream(part, append)) {
+                    byte[] buf = new byte[16384];
+                    int n;
+                    long got = 0;
+                    while ((n = in.read(buf)) > 0) {
+                        out.write(buf, 0, n);
+                        got += n;
+                    }
+                    if (total >= 0 && got < total) return false;      // 没下完，留着 .part 下次续
+                }
+                if (!part.renameTo(f)) {
+                    part.delete();
+                    return false;
+                }
+                return true;
+            } catch (IOException e) {
+                return false;
+            } finally {
+                if (c != null) c.disconnect();
+            }
+        } finally {
+            synchronized (inflight) {
+                inflight.remove(path);
+            }
+        }
+    }
+
+    private static boolean waitFor(File f) {
+        for (int i = 0; i < 60 && !f.isFile(); i++) {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                return false;
+            }
+        }
         return f.isFile();
+    }
+
+    /** 带重试的下载：每次失败等一会儿再来，已经下好的部分不丢。 */
+    public static boolean fetchWithRetry(Context ctx, String path, int attempts) {
+        for (int i = 0; i < attempts; i++) {
+            if (fetchFile(ctx, path, 15000)) return true;
+            try {
+                Thread.sleep(2000L << i);
+            } catch (InterruptedException e) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** 确保某个文件在本地：没有就下载。返回是否可用。 */
+    public static boolean ensure(Context ctx, String path) {
+        return fetchWithRetry(ctx, path, 2);
+    }
+
+    /**
+     * 这张图用哪个文件显示：大图（1920）存过就用大图；没存过，先用小得多的 1280 版立刻显示，
+     * 同时在后台把大图下好，下次就是大图。网络慢时不会让壁纸干等。
+     */
+    public static File photoFile(Context ctx, io.github.guangying.data.Photo p) {
+        File large = new File(root(ctx), p.large);
+        if (large.isFile()) return large;
+        File small = new File(root(ctx), p.id);
+        if (small.isFile() || ensure(ctx, p.id)) {
+            final Context app = ctx.getApplicationContext();
+            final String path = p.large;
+            if (!path.equals(p.id)) new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    fetchWithRetry(app, path, 3);
+                }
+            }, "guangying-large").start();
+            return small;
+        }
+        return ensure(ctx, p.large) ? large : null;
     }
 
     /** 先写临时文件再改名：壁纸和主界面在两个进程里，可能同时写同一个文件。 */
@@ -262,17 +362,19 @@ public final class Site {
             public void run() {
                 try {
                     List<String> list = imageList(ctx);
-                    int done = countCached(ctx, list), failed = 0;
+                    // 先下玻璃用的模糊小图（只有几 KB），再下大图
+                    List<String> ordered = new ArrayList<>();
+                    for (String p : list) if (p.startsWith("photos/b/")) ordered.add(p);
+                    for (String p : list) if (!p.startsWith("photos/b/")) ordered.add(p);
+                    int done = countCached(ctx, list), consecutive = 0;
                     cb.update(done, list.size(), false);
-                    for (String p : list) {
-                        File f = new File(root(ctx), p);
-                        if (f.isFile()) continue;
-                        byte[] data = download(BASE + p, 20000);
-                        if (data == null) {
-                            if (++failed >= 5) break;     // 多次失败，多半是断网了
+                    for (String p : ordered) {
+                        if (new File(root(ctx), p).isFile()) continue;
+                        if (!fetchWithRetry(ctx, p, 3)) {
+                            if (++consecutive >= 4) break;      // 连着失败：多半断网了，等网络恢复再续
                             continue;
                         }
-                        save(f, data);
+                        consecutive = 0;
                         done++;
                         cb.update(done, list.size(), false);
                     }

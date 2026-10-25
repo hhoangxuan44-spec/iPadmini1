@@ -43,6 +43,8 @@ public class CalendarWallpaper extends WallpaperService {
         private long fadeStart;
         private String loadingId = "", curId = "";
         private boolean registered;
+        private long lastKick;
+        private android.net.ConnectivityManager.NetworkCallback netCb;
         private float xOff = 0.5f;
 
         private final Runnable advanceTask = new Runnable() {
@@ -71,6 +73,26 @@ public class CalendarWallpaper extends WallpaperService {
             setTouchEventsEnabled(false);
             prefs = new Prefs(CalendarWallpaper.this);
             Wall.listen(this);
+            // 网络恢复（Wi-Fi 时断时续）时，接着下没下完的图片
+            android.net.ConnectivityManager cm = (android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+            netCb = new android.net.ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(android.net.Network n) {
+                    long now = System.currentTimeMillis();
+                    if (now - lastKick < 60000 || Site.isDownloading() || !Site.unmetered(CalendarWallpaper.this)) return;
+                    lastKick = now;
+                    Site.downloadAll(getApplicationContext(), new Site.Progress() {
+                        @Override
+                        public void update(int done, int total, boolean finished) {
+                        }
+                    });
+                }
+            };
+            try {
+                if (cm != null) cm.registerDefaultNetworkCallback(netCb);
+            } catch (RuntimeException ignored) {
+                netCb = null;
+            }
             if (Site.unmetered(CalendarWallpaper.this) && !Site.isDownloading()) {
                 Site.downloadAll(getApplicationContext(), new Site.Progress() {
                     @Override
@@ -181,8 +203,9 @@ public class CalendarWallpaper extends WallpaperService {
                 public void run() {
                     Context ctx = CalendarWallpaper.this;
                     Bitmap frame = null;
-                    if (Site.ensure(ctx, p.large)) {
-                        Bitmap full = WallArt.decode(Library.file(ctx, p.large), w, h);
+                    File src = Site.photoFile(ctx, p);
+                    if (src != null) {
+                        Bitmap full = WallArt.decode(src, w, h);
                         Bitmap blur = null;
                         if (p.style.equals("gallery") && !p.blur.isEmpty() && Site.ensure(ctx, p.blur)) {
                             blur = WallArt.decode(Library.file(ctx, p.blur), 64, 64);
@@ -297,6 +320,12 @@ public class CalendarWallpaper extends WallpaperService {
         public void onDestroy() {
             main.removeCallbacksAndMessages(null);
             Wall.unlisten(this);
+            if (netCb != null) {
+                try {
+                    ((android.net.ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE)).unregisterNetworkCallback(netCb);
+                } catch (RuntimeException ignored) {
+                }
+            }
             if (registered) {
                 unregisterReceiver(tick);
                 registered = false;

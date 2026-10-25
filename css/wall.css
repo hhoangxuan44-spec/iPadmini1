@@ -46,6 +46,9 @@ html, body {
 @-webkit-keyframes bootIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes bootIn { from { opacity: 0; } to { opacity: 1; } }
 
+/* 开场时大图还没下载好，先铺一张模糊的小图 */
+.boot-ph { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-size: cover; background-position: center; }
+
 /* 层：远景、画作、卡片各自一层，触摸时错开位移就有了景深 */
 .pl { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
 .pl-bg { z-index: 0; -webkit-transform: scale(1.03); transform: scale(1.03); }

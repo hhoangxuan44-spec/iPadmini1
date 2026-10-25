@@ -35,8 +35,9 @@ public final class Preview {
         Photo p = Wall.current(ctx);
         String pos = new Prefs(ctx).position();
         Bitmap out = null;
-        if (p != null && Site.ensure(ctx, p.large)) {
-            Bitmap full = WallArt.decode(Library.file(ctx, p.large), w, h);
+        java.io.File src = p == null ? null : Site.photoFile(ctx, p);
+        if (src != null) {
+            Bitmap full = WallArt.decode(src, w, h);
             Bitmap blur = null;
             if (p.style.equals("gallery") && !p.blur.isEmpty() && Site.ensure(ctx, p.blur)) {
                 blur = WallArt.decode(Library.file(ctx, p.blur), 64, 64);

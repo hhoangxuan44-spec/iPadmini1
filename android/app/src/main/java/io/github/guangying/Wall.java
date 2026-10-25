@@ -29,6 +29,8 @@ public final class Wall {
     private static final List<Listener> listeners = new CopyOnWriteArrayList<>();
     private static final Handler main = new Handler(Looper.getMainLooper());
     private static final Random rnd = new Random();
+    /** 提前选好并下载好的下一张：到时间换图不用再等下载 */
+    private static volatile Photo prefetched;
 
     public static void listen(Listener l) {
         if (!listeners.contains(l)) listeners.add(l);
@@ -68,7 +70,15 @@ public final class Wall {
                 }
                 if (all.isEmpty()) return;
                 Prefs pr = new Prefs(app);
-                final Photo p = pick(app, all, pr, true);
+                Photo pre = prefetched;
+                prefetched = null;
+                final Photo p;
+                if (pre != null && Library.find(all, pre.id) != null && new java.io.File(Site.root(app), pre.large).isFile()) {
+                    p = pre;
+                    pr.setCurrent(p.id, System.currentTimeMillis());
+                } else {
+                    p = pick(app, all, pr, true);
+                }
                 if (p == null) return;
                 main.post(new Runnable() {
                     @Override
@@ -77,8 +87,22 @@ public final class Wall {
                         Widgets.refreshAll(app);
                     }
                 });
+                prefetch(app, all, pr);
             }
         }, "guangying-next").start();
+    }
+
+    /** 趁现在有网，把下一张图（和玻璃、画廊用的模糊小图）先下好 */
+    private static void prefetch(Context app, List<Photo> all, Prefs pr) {
+        try {
+            if (!Site.online(app)) return;
+            Photo n = Library.pick(app, all, pr.recent(), Calendar.getInstance(), pr.position(), false, rnd);
+            if (n == null) return;
+            if (Site.fetchWithRetry(app, n.large, 3) && !n.blur.isEmpty()) Site.fetchWithRetry(app, n.blur, 2);
+            prefetched = n;
+        } catch (RuntimeException ignored) {
+            // 预取失败不影响正常换图
+        }
     }
 
     /** 还没有当前图片（刚安装）时选一张并刷新组件 */

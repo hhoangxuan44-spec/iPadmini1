@@ -610,6 +610,7 @@
       if (c.part === 'dusk' && has('dusk')) w *= 2.5;
     }
     for (var i = 0; i < c.fest.length; i++) if (has(c.fest[i])) w *= 6;
+    if (slowNet() && p.o) w *= 4;          // 网速慢时，已经在本地的图优先
     return w;
   }
 
@@ -626,7 +627,7 @@
   function nextPhoto() {
     var c = scene(new Date());
     var offline = offlineMode();
-    var key = c.key + (offline ? '|off' : '');
+    var key = c.key + (offline ? '|off' : '') + (slowNet() ? '|slow' : '');
     if (!queue.length || key !== sceneKey) {
       // 加权随机排序（权重越高越可能排在前面），最近出现过的图先不放进来
       sceneKey = key;
@@ -651,8 +652,11 @@
     return next;
   }
 
-  // 离线图包里只存了 1280 像素的版本，断网时都用它
-  function srcOf(p) { return hiDPI && p.l && !offlineMode() ? p.l : p.m; }
+  // 网速慢：加载一张图花了很久，之后半小时改用小图，并更多地挑已经存在本地的离线图包里的图
+  var slowUntil = 0;
+  function slowNet() { return Date.now() < slowUntil; }
+  // 离线图包里只存了 1280 像素的版本，断网和网速慢时都用它
+  function srcOf(p) { return hiDPI && p.l && !offlineMode() && !slowNet() ? p.l : p.m; }
 
   function startKenBurns(s) {
     if (s._kb) { s._photoEl.className += s._kb; s._kb = null; }
@@ -667,25 +671,32 @@
     s.parentNode.removeChild(s);
   }
 
-  // 加载图片并搭好一页（不显示）
+  // 加载图片并搭好一页（不显示）。网络卡住时 onload / onerror 可能永远不来，所以加超时。
   function loadSlide(p, cb) {
     var img = new Image();
-    var done = false;
+    var done = false, t0 = Date.now(), timer = null;
+    function fail() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      img.onload = img.onerror = null;
+      p._failAt = Date.now();
+      failStreak++;
+      slowUntil = Date.now() + 30 * 60000;
+      cb(null);
+    }
     function ok() {
       if (done) return;
       done = true;
+      clearTimeout(timer);
+      if (Date.now() - t0 > 12000) slowUntil = Date.now() + 30 * 60000;
       var s = buildSlide(p);
       s._fullEl.style.backgroundImage = 'url("' + img.src + '")';
       cb(s);
     }
     img.onload = function () { failStreak = 0; ok(); };
-    img.onerror = function () {
-      if (done) return;
-      done = true;
-      p._failAt = Date.now();
-      failStreak++;
-      cb(null);
-    };
+    img.onerror = fail;
+    timer = setTimeout(fail, 60000);
     img.src = srcOf(p);
   }
 
@@ -697,7 +708,7 @@
     preparing = true;
     loadSlide(nextPhoto(), function (s) {
       preparing = false;
-      if (!s) { setTimeout(prepare, 1000); return; }
+      if (!s) { setTimeout(prepare, Math.min(60000, 3000 * (failStreak + 1))); return; }
       toggleClass(s, 'ui-off', true);
       stage.insertBefore(s, cur || null);
       prepared(s);
@@ -727,7 +738,7 @@
       release(old);
       busy = false;
       schedule();
-      setTimeout(prepare, 8000);                                         // 空闲时再准备下一页
+      setTimeout(prepare, 2500);                                         // 马上开始准备下一页：网慢时有整整五分钟可以慢慢下载
     }, UI_OUT + PHOTO_FADE + 100);
   }
 
@@ -744,18 +755,24 @@
   }
 
   function boot(p) {
+    // 先用 160 像素的模糊小图（几 KB）把画面铺出来，大图好了再淡入：网慢时一打开不是黑屏
+    var placeholder = null;
+    if (p.b && !(cur)) {
+      placeholder = el('div', 'boot-ph', stage);
+      placeholder.style.backgroundImage = 'url("' + p.b + '")';
+    }
     loadSlide(p, function (s) {
-      if (!s) { boot(nextPhoto()); return; }
+      if (!s) { setTimeout(function () { boot(nextPhoto()); }, 2000); return; }
       toggleClass(s, 'boot', true);
       // 开场淡入结束后移除动画，否则 animation 的 fill 会锁住 opacity，之后无法淡出
-      setTimeout(function () { toggleClass(s, 'boot', false); }, 2000);
+      setTimeout(function () { toggleClass(s, 'boot', false); if (placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder); }, 2000);
       stage.appendChild(s);
       prepared(s);
       startKenBurns(s);
       cur = s;
       shownAt = Date.now();
       schedule();
-      setTimeout(prepare, 3000);
+      setTimeout(prepare, 2500);
       setTimeout(function () { sweep(s); }, 2600);
     });
   }
