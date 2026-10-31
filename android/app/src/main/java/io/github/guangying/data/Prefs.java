@@ -64,7 +64,7 @@ public final class Prefs {
         List<String> r = recent();
         r.remove(id);
         r.add(id);
-        while (r.size() > 30) r.remove(0);
+        while (r.size() > 120) r.remove(0);
         sp.edit().putString("cur", id).putLong("shown", at).putString("recent", join(r)).apply();
     }
 

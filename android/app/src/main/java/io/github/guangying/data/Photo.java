@@ -21,6 +21,8 @@ public final class Photo {
     public String ink = "light";
     public int accent = 0xFFFFD60A;
     public int bg = 0xFF111111;
+    /** 清透鲜亮程度 0-100（构建时计算）：暗调、灰调、单色偏低 */
+    public int v = 0;
     /** 画面里的光（构建时分析）：光源位置 0-1、方向性、高光色、阴影色 */
     public float lx = 0.32f, ly = 0.08f, lk = 0.45f;
     public int hl = 0xFFFFF0DC, sh = 0xFF10101A;
@@ -39,6 +41,7 @@ public final class Photo {
         p.w = o.optInt("w", 4);
         p.h = o.optInt("h", 3);
         p.kind = o.optString("kind", p.kind);
+        p.v = o.optInt("v", 0);
         p.title = o.optString("title");
         p.sub = o.optString("sub");
         p.desc = o.optString("desc");

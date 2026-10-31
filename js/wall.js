@@ -600,6 +600,10 @@
   function weight(p, c) {
     var t = p.tags || [], w = 1;
     function has(x) { return t.indexOf(x) >= 0; }
+    // 清透鲜亮的图优先；暗调、灰调、单色图降低出现频率
+    if (typeof p.v === 'number') w *= 0.45 + Math.max(0, Math.min(100, p.v)) / 100 * 1.5;
+    // 古画/西方绘画少一些，和照片搭配着出现
+    if (p.kind === 'east' || p.kind === 'west') w *= 0.5;
     if (has('spring') || has('summer') || has('autumn') || has('winter')) w *= has(c.season) ? 2 : 0.6;
     var nightly = has('night') || has('stars');
     if (c.part === 'night') {

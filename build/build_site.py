@@ -224,6 +224,18 @@ def clean_title(file_title, meta):
 
 # ---------------------------------------------------------------- 图片处理
 
+def vividness(img):
+    """清透鲜亮程度 0-100：饱和度为主，亮度为辅。暗调、灰调、单色会明显偏低。"""
+    hsv = img.convert("HSV").resize((320, 320), Image.LANCZOS)
+    sat, val = hsv.split()[1], hsv.split()[2]
+    s = ImageStat.Stat(sat).mean[0] / 255.0
+    v = ImageStat.Stat(val).mean[0] / 255.0
+    q = 100 * (s ** 0.7) * (0.35 + 0.65 * v)
+    if v < 0.32:                      # 整体偏暗：额外压低，夜景仍会偶尔出现
+        q *= 0.35 + 0.65 * (v / 0.32)
+    return int(round(q))
+
+
 def tone_and_accent(img):
     """计算整体明暗，并挑一个鲜艳的主题色（用于日期页的小点缀）。"""
     small = img.convert("RGB").resize((64, 64))
@@ -265,6 +277,7 @@ def save_versions(img, key, outdir):
     b.save(os.path.join(outdir, "b", key + ".jpg"), "JPEG", quality=72)
     entry["b"] = "photos/b/%s.jpg" % key
     entry["lum"], entry["accent"] = tone_and_accent(img)
+    entry["v"] = vividness(img)
     small = img.copy()
     small.thumbnail((640, 640), Image.LANCZOS)
     entry["feat"] = theme.analyze(small)

@@ -92,16 +92,20 @@ public final class Library {
 
     static double weight(Photo p, Scene c, String pos) {
         double w = 1;
-        if (p.has("spring") || p.has("summer") || p.has("autumn") || p.has("winter")) w *= p.has(c.season) ? 3 : 0.35;
+        // 清透鲜亮的图优先；暗调、灰调、单色图降低出现频率（与网页版一致）
+        if (p.v > 0) w *= 0.45 + Math.min(100, p.v) / 100.0 * 1.5;
+        // 古画/西方绘画少一些，和照片搭配着出现
+        if ("east".equals(p.kind) || "west".equals(p.kind)) w *= 0.5;
+        if (p.has("spring") || p.has("summer") || p.has("autumn") || p.has("winter")) w *= p.has(c.season) ? 2 : 0.6;
         boolean nightly = p.has("night") || p.has("stars");
         if (c.part.equals("night")) {
-            if (nightly || p.has("moon")) w *= 3; else if (p.has("dawn")) w *= 0.5;
+            if (nightly || p.has("moon")) w *= 1.8; else if (p.has("dawn")) w *= 0.6;
         } else {
-            if (nightly) w *= 0.3;
-            if (c.part.equals("dawn") && p.has("dawn")) w *= 2.5;
-            if (c.part.equals("dusk") && p.has("dusk")) w *= 2.5;
+            if (nightly) w *= 0.4;
+            if (c.part.equals("dawn") && p.has("dawn")) w *= 1.8;
+            if (c.part.equals("dusk") && p.has("dusk")) w *= 1.8;
         }
-        for (String f : c.fest) if (p.has(f)) w *= 6;
+        for (String f : c.fest) if (p.has(f)) w *= 4;
         // 日历组件所在的位置画面安静的图片优先；画廊装裱可以自己安排位置，不受影响
         int[] q = p.quiet.get(pos);
         if (q != null && !p.style.equals("gallery")) w *= q[0] <= 40 ? 2.5 : q[0] <= 60 ? 1.2 : 0.35;
