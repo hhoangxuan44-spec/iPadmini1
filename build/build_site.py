@@ -544,7 +544,7 @@ def write_appcache(entries):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fake", type=int, default=0, help="生成 N 张假图（离线调试）")
-    ap.add_argument("--offline-mb", type=float, default=22, help="离线图包大小上限（MB）")
+    ap.add_argument("--offline-mb", type=float, default=12, help="离线图包大小上限（MB）")
     args = ap.parse_args()
 
     if os.path.isdir(DIST):

@@ -68,7 +68,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: build/.cache
-          key: commons-${{ hashFiles('build/build_site.py', 'build/catalog.py') }}
+          key: commons-${{ hashFiles('build/catalog*.py') }}
           restore-keys: commons-
       - name: 下载图片并生成网站
         run: python build/build_site.py
