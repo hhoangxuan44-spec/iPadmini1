@@ -600,17 +600,17 @@
   function weight(p, c) {
     var t = p.tags || [], w = 1;
     function has(x) { return t.indexOf(x) >= 0; }
-    if (has('spring') || has('summer') || has('autumn') || has('winter')) w *= has(c.season) ? 3 : 0.35;
+    if (has('spring') || has('summer') || has('autumn') || has('winter')) w *= has(c.season) ? 2 : 0.6;
     var nightly = has('night') || has('stars');
     if (c.part === 'night') {
-      if (nightly || has('moon')) w *= 3; else if (has('dawn')) w *= 0.5;
+      if (nightly || has('moon')) w *= 1.8; else if (has('dawn')) w *= 0.6;
     } else {
-      if (nightly) w *= 0.3;
-      if (c.part === 'dawn' && has('dawn')) w *= 2.5;
-      if (c.part === 'dusk' && has('dusk')) w *= 2.5;
+      if (nightly) w *= 0.4;
+      if (c.part === 'dawn' && has('dawn')) w *= 1.8;
+      if (c.part === 'dusk' && has('dusk')) w *= 1.8;
     }
-    for (var i = 0; i < c.fest.length; i++) if (has(c.fest[i])) w *= 6;
-    if (slowNet() && p.o) w *= 4;          // 网速慢时，已经在本地的图优先
+    for (var i = 0; i < c.fest.length; i++) if (has(c.fest[i])) w *= 4;
+    if (slowNet() && p.o) w *= 2;          // 网速慢时，已经在本地的图优先
     return w;
   }
 
@@ -631,7 +631,7 @@
     if (!queue.length || key !== sceneKey) {
       // 加权随机排序（权重越高越可能排在前面），最近出现过的图先不放进来
       sceneKey = key;
-      var keep = Math.min(30, Math.floor(photos.length / 3));
+      var keep = Math.min(120, Math.floor(photos.length / 2));
       var pool = [];
       for (var i = 0; i < photos.length; i++) {
         var p = photos[i];
@@ -648,7 +648,7 @@
     }
     var next = queue.shift();
     recent.push(next);
-    if (recent.length > Math.min(30, Math.floor(photos.length / 3))) recent.shift();
+    if (recent.length > Math.min(120, Math.floor(photos.length / 2))) recent.shift();
     return next;
   }
 

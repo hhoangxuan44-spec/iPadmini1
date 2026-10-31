@@ -925,4 +925,14 @@ from catalog_more import CATALOG_MORE, POEMS_MORE, TAGS_MORE  # noqa: E402
 CATALOG += CATALOG_MORE
 POEMS.update(POEMS_MORE)
 TAGS.update(TAGS_MORE)
+
+# 第三批：扩充 450 张（由 build_catalog1000.py 生成，以鲜亮的摄影作品为主）
+try:
+    from catalog_1000 import CATALOG_1000, POEMS_1000, TAGS_1000  # noqa: E402
+    CATALOG += CATALOG_1000
+    POEMS.update(POEMS_1000)
+    TAGS.update(TAGS_1000)
+except ImportError:  # 没有第三批时也能正常构建（例如旧分支）
+    pass
+
 TAGS = {k: v for k, v in TAGS.items() if v}
