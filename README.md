@@ -92,6 +92,16 @@ APK 由 Actions 在每次发布时自动打包（`android/`，Java，无第三�
 
 材质、光影、层次与交互的设计规范见 [DESIGN.md](DESIGN.md)。
 
+### 系统里找不到动态壁纸的选择界面时
+
+有些定制系统（部分掌机、平板 ROM）删掉了动态壁纸的入口，但底层仍支持。平板连上电脑、开启 USB 调试，在电脑上执行：
+
+```bash
+adb shell 'CLASSPATH=$(pm path io.github.guangying | cut -d: -f2) app_process /system/bin io.github.guangying.ShellSetWallpaper'
+```
+
+它以 adb shell 的身份调用系统壁纸服务（`setWallpaperComponentChecked`），把「光影」设成真正的动态壁纸，保留淡入淡出和缓慢推拉；设好后一直有效，恢复出厂设置才需要重来。没有电脑时，用 App 里的「兼容模式」（App 定时自己设置静态壁纸）。兼容模式靠定时任务，需要在系统设置里把光影的电池策略设为「不限制」、允许自启动，否则省电策略可能把它杀掉。
+
 ## 操作
 
 | 操作 | 效果 |
