@@ -87,6 +87,7 @@ public final class Wall {
                         Widgets.refreshAll(app);
                     }
                 });
+                if (pr.staticMode()) StaticWall.apply(app);        // 兼容模式：同步设成系统静态壁纸
                 prefetch(app, all, pr);
             }
         }, "guangying-next").start();

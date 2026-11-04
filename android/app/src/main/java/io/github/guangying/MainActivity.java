@@ -138,6 +138,19 @@ public class MainActivity extends Activity implements Wall.Listener {
 
         side.addView(button("1  设为桌面动态壁纸", true, v -> setWallpaper()));
         side.addView(gap(10));
+        staticBtn = button("", false, v -> {
+            if (prefs.staticMode()) {
+                StaticWall.disable(this);
+                updateStaticButton();
+            } else {
+                StaticWall.enable(this);
+                Toast.makeText(this, "已开启，正在设置壁纸…", Toast.LENGTH_LONG).show();
+                updateStaticButton();
+            }
+        });
+        updateStaticButton();
+        side.addView(staticBtn);
+        side.addView(hint("系统壁纸设置里找不到动态壁纸时用：App 每隔几分钟自己把图片设成系统静态壁纸。"));
         side.addView(text("2  添加桌面组件", 15, Color.WHITE));
         side.addView(gap(8));
         Object[][] widgets = {{"月历", CalendarWidget.class}, {"画意", StoryWidget.class}, {"时钟", ClockWidget.class},
@@ -299,6 +312,10 @@ public class MainActivity extends Activity implements Wall.Listener {
     }
 
     private void setWallpaper() {
+        if (!StaticWall.liveSupported(this)) {
+            offerStatic("这台设备的系统没有动态壁纸功能（壁纸设置里只有静态壁纸）。");
+            return;
+        }
         Intent i = new Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER);
         i.putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT, new ComponentName(this, CalendarWallpaper.class));
         try {
@@ -307,9 +324,31 @@ public class MainActivity extends Activity implements Wall.Listener {
             try {
                 startActivity(new Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER));
             } catch (ActivityNotFoundException e2) {
-                Toast.makeText(this, "请到 设置 → 壁纸 里选择「光影月历」", Toast.LENGTH_LONG).show();
+                offerStatic("系统里找不到动态壁纸的设置入口。");
             }
         }
+    }
+
+    /** 没有动态壁纸入口时：改用兼容模式（App 自己定时设置静态壁纸） */
+    private void offerStatic(String why) {
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("改用兼容模式？")
+                .setMessage(why + "\n\n兼容模式：App 每隔几分钟自己把图片设成系统壁纸（没有淡入淡出和缓慢推拉），"
+                        + "桌面组件、应景选图、画廊装裱都照常。")
+                .setPositiveButton("开启兼容模式", (d, w) -> {
+                    StaticWall.enable(this);
+                    Toast.makeText(this, "已开启，正在设置壁纸…", Toast.LENGTH_LONG).show();
+                    updateStaticButton();
+                })
+                .setNegativeButton("不用", null)
+                .show();
+    }
+
+    private TextView staticBtn;
+
+    private void updateStaticButton() {
+        if (staticBtn == null) return;
+        staticBtn.setText(prefs.staticMode() ? "兼容模式（静态壁纸定时换）：开" : "兼容模式（静态壁纸定时换）：关");
     }
 
     private void pin(Class<?> provider) {

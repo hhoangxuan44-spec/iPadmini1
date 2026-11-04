@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 兼容模式：系统里没有动态壁纸入口时，由 App 自己定时设置静态壁纸 -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".App"
@@ -114,6 +117,16 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quote_widget_info" />
+        </receiver>
+
+        <!-- 兼容模式：定时换壁纸、开机后恢复 -->
+        <receiver
+            android:name=".StaticWall$Tick"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
         </receiver>
 
         <!-- 点组件换下一张 -->

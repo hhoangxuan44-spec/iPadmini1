@@ -39,6 +39,15 @@ public final class Prefs {
         sp.edit().putBoolean("motion", on).apply();
     }
 
+    /** 兼容模式：用静态壁纸代替动态壁纸（系统里没有动态壁纸入口时） */
+    public boolean staticMode() {
+        return sp.getBoolean("static", false);
+    }
+
+    public void setStaticMode(boolean on) {
+        sp.edit().putBoolean("static", on).apply();
+    }
+
     public boolean nightDim() {
         return sp.getBoolean("night", true);
     }
