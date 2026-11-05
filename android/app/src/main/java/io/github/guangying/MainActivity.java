@@ -203,6 +203,8 @@ public class MainActivity extends Activity implements Wall.Listener {
         side.addView(hint("像 iPad 上那样全屏常亮，不需要桌面组件。轻点换图，左右滑看其他月份，返回键退出。"));
         side.addView(button("设为屏幕保护程序", false, v -> openDreamSettings()));
         side.addView(hint("充电时自动全屏显示月历，碰一下屏幕回到桌面。"));
+        side.addView(button("微光：亮度与极暗", false, v -> startActivity(new Intent(this, DimmerActivity.class))));
+        side.addView(hint("一个滑块调亮度，也能调到比系统最低亮度更暗；可加到快捷设置里一键切夜间。"));
         side.addView(button("下载全部图片（离线可用）", false, v -> download()));
         status = hint("");
         side.addView(status);

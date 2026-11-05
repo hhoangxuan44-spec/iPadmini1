@@ -144,9 +144,13 @@ def _band_color(dominant, vivid):
 
 
 def _paper_color(dominant):
-    # 米色纸张里掺一点画面主色
+    # 米色纸张里掺画面主色，纸像是从这张画面里「长」出来的；画面偏暗时纸也略暗、偏暖（灯下的纸）
     base = (243, 236, 220)
-    return _hex(tuple(base[i] * 0.93 + dominant[i] * 0.07 for i in range(3)))
+    lum = _lum(dominant)
+    k = 0.12
+    dark = max(0.0, 0.45 - lum) / 0.45          # 0（亮）… 1（很暗）
+    tone = 1 - 0.1 * dark
+    return _hex(tuple((base[i] * (1 - k) + dominant[i] * k) * tone for i in range(3)))
 
 
 def assign(items):
@@ -162,9 +166,10 @@ def assign(items):
     art = sorted([it for it in items if is_art(it)], key=lambda t: t["title"])
     photos = [it for it in items if not is_art(it)]
 
+    # 质感要和画面搭：暗调的画配米白纸卡会很突兀，一律改成画廊装裱（深色墙面衬着画）
     for it in art:
         r = it["w"] / float(it["h"])
-        if r < 1.22 or r > 1.95:
+        if r < 1.22 or r > 1.95 or it.get("lum", 128) < 70:
             it["style"] = "gallery"
     east_poem = [it for it in art if "style" not in it and it["kind"] == "east" and it.get("poem")]
     for i, it in enumerate(east_poem):
@@ -173,7 +178,11 @@ def assign(items):
     for i, it in enumerate(rest):
         it["style"] = "gallery" if i % 2 == 0 else "paper"
 
-    china_poem = sorted([it for it in photos if it["kind"] == "china" and it.get("poem")], key=lambda t: t["title"])
+    # 宣纸诗笺只配清淡、中等明暗的风光照片：很暗或色彩浓烈的画面上，一张米色纸笺显得格格不入
+    def paper_fits(it):
+        return 80 <= it.get("lum", 128) <= 205 and it["feat"]["sat"] <= 0.5
+
+    china_poem = sorted([it for it in photos if it["kind"] == "china" and it.get("poem") and paper_fits(it)], key=lambda t: t["title"])
     for i, it in enumerate(china_poem):
         if i % 2 == 0:
             it["style"] = "vpoem"

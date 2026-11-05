@@ -48,6 +48,23 @@ public final class Prefs {
         sp.edit().putBoolean("static", on).apply();
     }
 
+    /** 微光的预设（0-1000 刻度）与「上次的日间值」 */
+    public int dimPreset(String name, int dflt) {
+        return sp.getInt("dim_" + name, dflt);
+    }
+
+    public void setDimPreset(String name, int v) {
+        sp.edit().putInt("dim_" + name, v).apply();
+    }
+
+    public int dimLastDay(int dflt) {
+        return sp.getInt("dim_lastday", dflt);
+    }
+
+    public void setDimLastDay(int v) {
+        sp.edit().putInt("dim_lastday", v).apply();
+    }
+
     public boolean nightDim() {
         return sp.getBoolean("night", true);
     }
