@@ -6,9 +6,6 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- 兼容模式：系统里没有动态壁纸入口时，由 App 自己定时设置静态壁纸 -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
-    <!-- 微光：改亮度需要 WRITE_SETTINGS（App 里引导授权）；系统「极暗」需要 WRITE_SECURE_SETTINGS（只能用 adb 授权一次） -->
-    <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
-    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -27,27 +24,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- 微光：亮度 + 极暗 -->
-        <activity
-            android:name=".DimmerActivity"
-            android:label="微光"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
-            </intent-filter>
-        </activity>
-
-        <service
-            android:name=".DimTile"
-            android:label="微光"
-            android:icon="@drawable/ic_tile_dim"
-            android:exported="true"
-            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
-            <intent-filter>
-                <action android:name="android.service.quicksettings.action.QS_TILE" />
-            </intent-filter>
-        </service>
 
         <!-- 全屏摆件模式 -->
         <activity
