@@ -47,7 +47,8 @@ public final class StaticWall {
             }
             Bitmap out = WallArt.compose(full, blur, p, new Prefs(ctx).position(), w, h, ctx.getAssets());
             WallpaperManager wm = WallpaperManager.getInstance(ctx);
-            wm.setBitmap(out, null, true, WallpaperManager.FLAG_SYSTEM);
+            // 桌面和锁屏一起设。只设 FLAG_SYSTEM 时，系统会先把旧图复制成单独的锁屏壁纸，锁屏从此不再跟着换
+            wm.setBitmap(out, null, true, WallpaperManager.FLAG_SYSTEM | WallpaperManager.FLAG_LOCK);
             return true;
         } catch (IOException | RuntimeException e) {
             CrashLog.note(ctx, "设置静态壁纸", e);
