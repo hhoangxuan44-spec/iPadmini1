@@ -91,11 +91,20 @@ public final class Library {
     }
 
     static double weight(Photo p, Scene c, String pos) {
+        return weight(p, c, pos, "scene");
+    }
+
+    static double weight(Photo p, Scene c, String pos, String mode) {
         double w = 1;
         // 清透鲜亮的图优先；暗调、灰调、单色图降低出现频率（与网页版一致）
         if (p.v > 0) w *= 0.45 + Math.min(100, p.v) / 100.0 * 1.5;
+        if ("bright".equals(mode)) {
+            // 明亮清爽：鲜亮程度的影响放大很多
+            double v = p.v > 0 ? Math.min(100, p.v) / 100.0 : 0.2;
+            w *= 0.05 + v * v * 6;
+        }
         // 古画/西方绘画少一些，和照片搭配着出现
-        if ("east".equals(p.kind) || "west".equals(p.kind)) w *= 0.5;
+        if (!"art".equals(mode) && ("east".equals(p.kind) || "west".equals(p.kind))) w *= 0.5;
         if (p.has("spring") || p.has("summer") || p.has("autumn") || p.has("winter")) w *= p.has(c.season) ? 2 : 0.6;
         boolean nightly = p.has("night") || p.has("stars");
         if (c.part.equals("night")) {
@@ -112,17 +121,32 @@ public final class Library {
         return w;
     }
 
-    /** 加权随机挑一张（最近出现过的先不选）。cachedOnly：只在已经存到本地的图片里挑。 */
+    /** 这张图符不符合用户选的主题和模式 */
+    static boolean allowed(Photo p, Scene c, java.util.Set<String> kinds, String mode) {
+        if ("art".equals(mode)) return "east".equals(p.kind) || "west".equals(p.kind);
+        if (!kinds.contains(p.kind)) return false;
+        if ("night".equals(mode) && c.part.equals("night")) return p.has("night") || p.has("stars") || p.has("moon");
+        return true;
+    }
+
+    /**
+     * 加权随机挑一张。依次放宽：先按主题和模式、不选最近出现过的；再允许最近出现过的；
+     * 都挑不到（比如离线时本地没有夜景）才不管主题。cachedOnly：只在已经存到本地的图片里挑。
+     */
     public static Photo pick(Context ctx, List<Photo> all, List<String> recent, Calendar now, String pos,
                              boolean cachedOnly, Random rnd) {
         Scene c = scene(now);
+        Prefs pr = new Prefs(ctx);
+        java.util.Set<String> kinds = pr.kinds();
+        String mode = pr.mode();
         Photo best = null;
         double bestKey = -1;
-        for (int pass = 0; pass < 2 && best == null; pass++) {
+        for (int pass = 0; pass < 3 && best == null; pass++) {
             for (Photo p : all) {
                 if (cachedOnly && !file(ctx, p.large).isFile()) continue;
+                if (pass < 2 && !allowed(p, c, kinds, mode)) continue;
                 if (pass == 0 && recent.contains(p.id) && all.size() > recent.size() + 1) continue;
-                double key = Math.pow(rnd.nextDouble(), 1.0 / weight(p, c, pos));
+                double key = Math.pow(rnd.nextDouble(), 1.0 / weight(p, c, pos, mode));
                 if (key > bestKey) {
                     bestKey = key;
                     best = p;

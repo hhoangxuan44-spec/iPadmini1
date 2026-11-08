@@ -189,6 +189,41 @@ public class MainActivity extends Activity implements Wall.Listener {
         side.addView(hint("壁纸会优先挑这个位置画面安静的图片，文字深浅也按这里的明暗决定。"));
         updateChips();
 
+        side.addView(text("4  想看哪些图片", 15, Color.WHITE));
+        for (int r = 0; r < 2; r++) {
+            LinearLayout row = new LinearLayout(this);
+            row.setPadding(0, px(10), 0, 0);
+            for (int c = 0; c < 3; c++) {
+                final int idx = r * 3 + c;
+                themeChips[idx] = chip(Prefs.THEMES[idx][0], v -> toggleTheme(idx));
+                LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+                lp.rightMargin = px(6);
+                row.addView(themeChips[idx], lp);
+            }
+            side.addView(row);
+        }
+        themeHint = hint("");
+        side.addView(themeHint);
+
+        side.addView(text("5  换图模式", 15, Color.WHITE));
+        LinearLayout modeRow = new LinearLayout(this);
+        modeRow.setPadding(0, px(10), 0, 0);
+        for (int i = 0; i < modeChips.length; i++) {
+            final String m = Prefs.MODES[i];
+            modeChips[i] = chip(Prefs.MODE_NAMES[i], v -> {
+                prefs.setMode(m);
+                updateThemeChips();
+                Wall.reselect(this);
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1f);
+            lp.rightMargin = px(6);
+            modeRow.addView(modeChips[i], lp);
+        }
+        side.addView(modeRow);
+        modeHint = hint("");
+        side.addView(modeHint);
+        updateThemeChips();
+
         final TextView motionBtn = button("", false, null);
         motionBtn.setOnClickListener(v -> {
             prefs.setMotion(!prefs.motion());
@@ -297,6 +332,51 @@ public class MainActivity extends Activity implements Wall.Listener {
             case "vpoem": return "诗笺";
             default: return s;
         }
+    }
+
+    private final TextView[] themeChips = new TextView[Prefs.THEMES.length];
+    private final TextView[] modeChips = new TextView[Prefs.MODES.length];
+    private TextView themeHint, modeHint;
+
+    private void toggleTheme(int idx) {
+        java.util.Set<String> kinds = prefs.kinds();
+        String[] t = Prefs.THEMES[idx];
+        boolean on = kinds.contains(t[1]);
+        for (int i = 1; i < t.length; i++) {
+            if (on) kinds.remove(t[i]); else kinds.add(t[i]);
+        }
+        if (kinds.isEmpty()) {
+            Toast.makeText(this, "至少留一类", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        prefs.setKinds(kinds);
+        updateThemeChips();
+        Wall.reselect(this);
+    }
+
+    private void updateThemeChips() {
+        java.util.Set<String> kinds = prefs.kinds();
+        boolean art = "art".equals(prefs.mode());
+        for (int i = 0; i < themeChips.length; i++) {
+            paintChip(themeChips[i], kinds.contains(Prefs.THEMES[i][1]), art);
+        }
+        themeHint.setText(art ? "「名画」模式只看绘画，这里的选择暂时不起作用。"
+                : "点一下选上或取消，选好马上换一张。离线时本地没有符合的图片，会暂时不按主题挑。");
+        String mode = prefs.mode();
+        for (int i = 0; i < modeChips.length; i++) {
+            boolean on = Prefs.MODES[i].equals(mode);
+            paintChip(modeChips[i], on, false);
+            if (on) modeHint.setText(Prefs.MODE_HINTS[i]);
+        }
+    }
+
+    private void paintChip(TextView chip, boolean on, boolean dimmed) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(px(12));
+        bg.setColor(on ? Color.WHITE : 0xFF1C1C1E);
+        chip.setBackground(bg);
+        chip.setTextColor(on ? Color.BLACK : Color.WHITE);
+        chip.setAlpha(dimmed ? 0.4f : 1f);
     }
 
     private void updateChips() {

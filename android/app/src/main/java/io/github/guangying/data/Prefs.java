@@ -12,6 +12,21 @@ public final class Prefs {
     public static final String[] POSITIONS = {"tl", "tr", "bl", "br", "l", "r"};
     public static final String[] POSITION_NAMES = {"左上", "右上", "左下", "右下", "左侧", "右侧"};
 
+    /** 主题：界面上的一类对应图库里的一个或几个 kind */
+    public static final String[][] THEMES = {
+            {"自然", "nature"}, {"动物与天象", "animal", "sky"}, {"城市建筑", "city"},
+            {"中国风光", "china"}, {"东方绘画", "east"}, {"西方绘画", "west"}};
+    private static final String ALL_KINDS = "nature,animal,sky,city,china,east,west";
+
+    /** 换图模式 */
+    public static final String[] MODES = {"scene", "bright", "night", "art"};
+    public static final String[] MODE_NAMES = {"应景", "明亮清爽", "静夜", "名画"};
+    public static final String[] MODE_HINTS = {
+            "跟着季节、时段和节日挑图：冬天多雪景，夜里多星空月色，清晨多日出，中秋多月亮。",
+            "多挑色彩明亮通透的照片，少出暗调、灰调和单色的图。",
+            "白天和「应景」一样；晚上 7 点到早上 5 点只出星空、月色和夜景。",
+            "只看东西方名画（北斋、广重、宋元山水、莫奈、凡·高……），不受上面主题的限制。"};
+
     private final SharedPreferences sp;
 
     public Prefs(Context ctx) {
@@ -24,6 +39,23 @@ public final class Prefs {
 
     public void setPosition(String p) {
         sp.edit().putString("pos", p).apply();
+    }
+
+    /** 选中的 kind；默认全部 */
+    public java.util.Set<String> kinds() {
+        return new java.util.HashSet<>(java.util.Arrays.asList(sp.getString("kinds", ALL_KINDS).split(",")));
+    }
+
+    public void setKinds(java.util.Set<String> kinds) {
+        sp.edit().putString("kinds", android.text.TextUtils.join(",", kinds)).apply();
+    }
+
+    public String mode() {
+        return sp.getString("mode", "scene");
+    }
+
+    public void setMode(String m) {
+        sp.edit().putString("mode", m).apply();
     }
 
     public int intervalMinutes() {
