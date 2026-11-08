@@ -106,6 +106,12 @@ public final class Wall {
         }
     }
 
+    /** 主题或模式改了：丢掉按旧设置预取的下一张，马上按新设置换一张 */
+    public static void reselect(Context ctx) {
+        prefetched = null;
+        advance(ctx);
+    }
+
     /** 还没有当前图片（刚安装）时选一张并刷新组件 */
     public static void advanceIfEmpty(Context ctx) {
         if (new Prefs(ctx).currentId().isEmpty()) advance(ctx);
