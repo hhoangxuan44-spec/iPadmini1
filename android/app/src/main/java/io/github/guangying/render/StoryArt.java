@@ -70,31 +70,35 @@ public final class StoryArt {
         } else {
             pen.noShadow();
         }
-        Typeface titleFace = paper ? f.serif(700) : gallery ? f.serif(700) : f.sans(600);
-        float tsz = paper ? 1.4f : gallery ? 1.1f : L.style.equals("glass") ? 1.15f : 1.3f;
-        float tsp = paper ? 0.08f : 0.04f;
+        // 版式像画册的一页：栏目小字（出处）→ 大标题 → 带竖线的引诗 → 两三行说明。层次拉开，字少而大。
+        int kicker = gallery ? 0xFF8A5A3C : L.accent;
         float cy = y;
-        cy += pen.paragraph(ph.title, x, cy, w, tsz * 1.35f, titleFace, tsz, ink, 1f, tsp, 2);
         if (!ph.sub.isEmpty()) {
-            cy += 0.3f;
-            int subColor = gallery ? 0xFF8A5A3C : L.accent;
-            pen.text(ph.sub, x, cy, 1.0f, f.sans(600), 0.74f, subColor, 1f, 0.08f, Pen.LEFT);
-            cy += 1.0f;
+            pen.text(ph.sub, x, cy, 1.0f, f.sans(600), 0.7f, kicker, 1f, 0.18f, Pen.LEFT);
+            cy += 1.0f + 0.35f;
         }
+        Typeface titleFace = f.serif(700);
+        float tsz = gallery ? 1.5f : paper ? 1.8f : 1.9f;
+        cy += pen.paragraph(ph.title, x, cy, w, tsz * 1.3f, titleFace, tsz, ink, 1f, 0.06f, 2);
         if (!ph.poem.isEmpty()) {
-            cy += 0.6f;
-            float psz = L.style.equals("band") ? 0.9f : gallery ? 0.86f : 0.98f;
-            cy += pen.paragraph(ph.poem, x, cy, w, psz * 1.55f, f.serif(400), psz, ink, 1f, 0.08f, 3);
-            cy += 0.1f;
-            pen.text(ph.poemSrc, x, cy, 0.9f, f.sans(400), 0.62f, ink, 0.62f, 0.12f, Pen.LEFT);
+            cy += 0.8f;
+            float psz = gallery ? 0.95f : 1.08f, bar = 0.9f;
+            float top = cy;
+            float ph1 = pen.paragraph(ph.poem, x + bar, cy, w - bar, psz * 1.6f, f.serif(400), psz, ink, 0.96f, 0.1f, 3);
+            cy += ph1 + 0.15f;
+            pen.text(ph.poemSrc, x + bar, cy, 0.9f, f.sans(400), 0.62f, ink, 0.6f, 0.12f, Pen.LEFT);
             cy += 0.9f;
+            if (pen.c != null) {
+                Paint bp = pen.paint();
+                bp.setColor(kicker);
+                pen.c.drawRect(x * pen.u, (top + 0.2f) * pen.u, (x + 0.14f) * pen.u, (cy - 0.15f) * pen.u, bp);
+            }
         }
         if (!ph.desc.isEmpty()) {
-            cy += 0.6f;
-            float dsz = gallery ? 0.74f : paper ? 0.84f : L.style.equals("glass") || L.style.equals("band") || L.style.equals("magazine") ? 0.8f : 0.86f;
-            float dlh = gallery ? 1.6f : paper ? 1.75f : 1.7f;
-            cy += pen.paragraph(ph.desc, x, cy, w, dsz * dlh, paper ? f.serif(400) : f.sans(400), dsz, ink, 0.92f, 0.02f,
-                    descLines);
+            cy += 0.75f;
+            float dsz = gallery ? 0.76f : 0.82f;
+            int max = descLines > 0 ? Math.min(descLines, 3) : 3;
+            cy += pen.paragraph(ph.desc, x, cy, w, dsz * 1.7f, paper ? f.serif(400) : f.sans(400), dsz, ink, 0.8f, 0.02f, max);
         }
         if (!ph.artist.isEmpty()) {
             cy += 0.55f;
@@ -164,6 +168,7 @@ public final class StoryArt {
         } else {
             CalendarArt.Spec spec = new CalendarArt.Spec(w, h, L, java.util.Calendar.getInstance());
             spec.backdrop = backdrop;
+            spec.contentOnly = contentOnly;
             CalendarArt.paintCard(pen, spec, p, x0, y0, cw, chh);
         }
         float cx = x0 + (cw - cardW) / 2f + p.padL, cy = y0 + (chh - cardH) / 2f + p.padT;

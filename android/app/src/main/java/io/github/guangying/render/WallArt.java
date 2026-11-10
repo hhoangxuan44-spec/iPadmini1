@@ -67,11 +67,11 @@ public final class WallArt {
     private static void finish(Canvas c, int w, int h, Photo p, android.content.res.AssetManager am, boolean grain) {
         Paint v = new Paint();
         float r = (float) Math.hypot(w, h) * 0.62f;
-        v.setShader(new RadialGradient(w * 0.5f, h * 0.46f, r, new int[]{0x00000000, 0x00000000, Look.withAlpha(p.sh, 0.34f)},
+        v.setShader(new RadialGradient(w * 0.5f, h * 0.46f, r, new int[]{0x00000000, 0x00000000, Look.withAlpha(p.sh, 0.2f)},
                 new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, h, v);
         if (grain) {
-            Paint g = tile(tex(am, "grain.png"), 0.3f, Math.max(1f, Math.min(w, h) / 900f));
+            Paint g = tile(tex(am, "grain.png"), 0.12f, Math.max(1f, Math.min(w, h) / 900f));
             if (g != null) c.drawRect(0, 0, w, h, g);
         }
     }

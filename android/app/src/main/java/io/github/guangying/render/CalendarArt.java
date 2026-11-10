@@ -95,7 +95,7 @@ public final class CalendarArt {
         boolean timeSerif;
         boolean lunar = true, motto = true, head = true, bigMonth, poster, vpoem, stretch, scrim, fillWidth;
         float cell = 2.2f, gridHead = 1.5f, numBox = 1.5f, numSize = 0.9f, subSize = 0.56f, subLine = 0.7f;
-        boolean sub = true, serifGrid;
+        boolean sub = true, serifGrid, dots;
         float gap = 1.5f;                                 // 时钟与月历之间
         int rule;                                         // 1 时钟与月历之间有细线，2 时钟上方有细线
         float leftCol = 15.5f;                            // 左右排版时左列的宽度
@@ -104,6 +104,17 @@ public final class CalendarArt {
     static P params(Look l) {
         P p = paramsOf(l);
         if (p.grid < 0) p.grid = p.inner;
+        // 留白：月历只留数字，节日和节气用一个小圆点标出；农历小字只在宣纸（老黄历的味道）上保留。
+        // 每日一言不再挤在月历里（有单独的「一言」组件）。照片才是主角，文字越少越好看。
+        if (!l.style.equals("paper")) {
+            if (p.sub) {
+                p.sub = false;
+                p.dots = true;
+                p.numSize *= 1.1f;
+                p.cell = p.numBox + 0.62f;
+            }
+            p.motto = false;
+        }
         return p;
     }
 
@@ -524,8 +535,9 @@ public final class CalendarArt {
         timeRow(pn, f, s, p, x, cy, p.timeSize, p.timeWeight, Pen.LEFT);
         cy += p.timeSize;
         cy += p.vpoem ? 0.25f : p.bigMonth ? 0.35f : 0.55f;
-        float dsz = p.vpoem ? 0.82f : 1.05f;
-        sepLine(pn, dateFace, dsz, x, cy, dsz * 1.4f, ink, 1f, 0.04f, date, week);
+        float dsz = p.vpoem ? 0.82f : p.card == PAPER || p.bigMonth ? 1.05f : 1.22f;
+        float dw = pn.text(date, x, cy, dsz * 1.4f, dateFace, dsz, ink, 1f, 0.04f, Pen.LEFT);
+        pn.text(week, x + dw + 0.6f * dsz, cy, dsz * 1.4f, dateFace, dsz, p.card == PAPER || p.vpoem ? ink : s.look.accent, 1f, 0.04f, Pen.LEFT);
         cy += dsz * 1.4f;
         if (p.lunar) {
             cy += 0.3f;
@@ -557,12 +569,23 @@ public final class CalendarArt {
                 cy += 1.15f + 0.35f;
                 pen.text(yr + " · " + NUM_CN[m] + "月", x, cy, 1.0f, f.sans(400), 0.74f, ink, 0.6f, 0.1f, Pen.LEFT);
                 cy += 1.0f + 0.7f;
-            } else {
+            } else if (p.card == PAPER) {
                 float nw = pen.digits(num, x, cy, 2.0f, numFace(f, p, 300), 2.0f, L.accent, 1f, 0, Pen.LEFT);
                 float nx = x + nw + 0.7f;
                 pen.text(MONTH_EN[m].toUpperCase(), nx, cy + 0.05f, 1.0f, f.num(600), 0.78f, L.accent, 1f, 0.26f, Pen.LEFT);
                 pen.text(yr + " · " + NUM_CN[m] + "月", nx, cy + 1.05f, 0.95f, f.sans(400), 0.68f, ink, 0.6f, 0.1f, Pen.LEFT);
                 cy += 2.0f + 0.55f;
+            } else {
+                // 一行小型大写的月份，后面拉一条细线到右边：像杂志的栏目标题
+                float tw = pen.text(MONTH_EN[m].toUpperCase(), x, cy, 1.1f, f.num(600), 0.74f, L.accent, 1f, 0.3f, Pen.LEFT);
+                float yw = pen.text(String.valueOf(yr), x + tw + 0.5f, cy, 1.1f, f.num(500), 0.74f, ink, 0.55f, 0.16f, Pen.LEFT);
+                if (pen.c != null) {
+                    Paint ln = pen.paint();
+                    ln.setColor(Look.withAlpha(ink, 0.22f));
+                    float lx = x + tw + 0.5f + yw + 0.7f;
+                    if (lx < x + w) pen.c.drawRect(lx * pen.u, (cy + 0.55f) * pen.u - 0.5f, (x + w) * pen.u, (cy + 0.55f) * pen.u + Math.max(0.5f, 0.03f * pen.u), ln);
+                }
+                cy += 1.1f + 0.7f;
             }
         }
         // 星期
@@ -587,8 +610,14 @@ public final class CalendarArt {
             boolean isToday = thisMonth && d == today;
             boolean weekend = col == 0 || col == 6;
             float a = isToday ? 1f : weekend ? 0.62f : 1f;
+            if (thisMonth && d < today && p.dots) a *= 0.62f;          // 过去的日子淡下去，一眼看出这个月走到哪了
             Lunar.Info info = info(yr, m + 1, d);
             boolean fest = !info.festivals.isEmpty();
+            if (p.dots && fest && !isToday && pen.c != null) {
+                Paint dp = pen.paint();
+                dp.setColor(Look.withAlpha(L.accent, a));
+                pen.c.drawCircle(cx * pen.u, (top + p.numBox + 0.2f) * pen.u, 0.11f * pen.u, dp);
+            }
             if (isToday && pen.c != null) {
                 Paint pt = pen.paint();
                 pt.setColor(L.accent);
@@ -879,12 +908,16 @@ public final class CalendarArt {
                             new float[]{0f, 0.45f, 1f}, Shader.TileMode.CLAMP));
                     c.drawRect(left ? 0 : x * u, 0, left ? (x + w) * u : cw, c.getHeight(), g);
                 } else if (p.scrim) {
-                    float cx = x + w / 2f, cy = y + h / 2f, ax = w / 2f + 5.5f, ay = h / 2f + 4.5f;
+                    float cx = x + w / 2f, cy = y + h / 2f;
+                    // 暗影必须在位图范围内淡到透明，否则组件边界会露出一个方框
+                    float tw = c.getWidth() / u, th = c.getHeight() / u;
+                    float ax = Math.min(w / 2f + 5.5f, Math.min(cx, tw - cx)), ay = Math.min(h / 2f + 4.5f, Math.min(cy, th - cy));
+                    if (ax <= 0 || ay <= 0) break;
                     c.save();
                     c.translate(cx * u, cy * u);
                     c.scale(ax * u, ay * u);
                     Paint g = pen.paint();
-                    g.setShader(new RadialGradient(0, 0, 1f, L.light ? 0x3D000000 : 0x66FFFFFF,
+                    g.setShader(new RadialGradient(0, 0, 1f, L.light ? 0x33000000 : 0x55FFFFFF,
                             L.light ? 0x00000000 : 0x00FFFFFF, Shader.TileMode.CLAMP));
                     c.drawCircle(0, 0, 1f, g);
                     c.restore();
