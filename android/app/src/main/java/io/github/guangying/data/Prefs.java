@@ -80,6 +80,30 @@ public final class Prefs {
         sp.edit().putBoolean("static", on).apply();
     }
 
+    /** 兼容模式上一次换壁纸的结果：什么时候试的、成没成、原因 */
+    public void setStaticResult(boolean ok, String note) {
+        long now = System.currentTimeMillis();
+        SharedPreferences.Editor e = sp.edit().putLong("static_tried", now).putString("static_note", note == null ? "" : note);
+        if (ok) e.putLong("static_ok", now);
+        e.putBoolean("static_last_ok", ok).apply();
+    }
+
+    public long staticTriedAt() {
+        return sp.getLong("static_tried", 0);
+    }
+
+    public long staticOkAt() {
+        return sp.getLong("static_ok", 0);
+    }
+
+    public boolean staticLastOk() {
+        return sp.getBoolean("static_last_ok", true);
+    }
+
+    public String staticNote() {
+        return sp.getString("static_note", "");
+    }
+
     public boolean nightDim() {
         return sp.getBoolean("night", true);
     }

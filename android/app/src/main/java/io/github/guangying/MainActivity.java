@@ -150,7 +150,16 @@ public class MainActivity extends Activity implements Wall.Listener {
         });
         updateStaticButton();
         side.addView(staticBtn);
-        side.addView(hint("系统壁纸设置里找不到动态壁纸时用：App 每隔几分钟自己把图片设成系统静态壁纸。"));
+        staticStatus = hint("");
+        side.addView(staticStatus);
+        side.addView(button("电池与自启动设置（防止换壁纸被系统关掉）", false, v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName())));
+            } catch (ActivityNotFoundException e) {
+                Toast.makeText(this, "请到 设置 → 应用 → 光影月历 里设置", Toast.LENGTH_LONG).show();
+            }
+        }));
+        side.addView(hint("兼容模式靠定时任务换壁纸。请在打开的页面里把电池设为「不限制」、允许自启动，否则系统省电时壁纸会停在旧图上。"));
         side.addView(text("2  添加桌面组件", 15, Color.WHITE));
         side.addView(gap(8));
         Object[][] widgets = {{"月历", CalendarWidget.class}, {"画意", StoryWidget.class}, {"时钟", ClockWidget.class},
@@ -293,6 +302,7 @@ public class MainActivity extends Activity implements Wall.Listener {
 
     @Override
     public void onPhoto(Photo p) {
+        updateStaticButton();
         renderPreview();
     }
 
@@ -424,11 +434,24 @@ public class MainActivity extends Activity implements Wall.Listener {
                 .show();
     }
 
-    private TextView staticBtn;
+    private TextView staticBtn, staticStatus;
 
     private void updateStaticButton() {
         if (staticBtn == null) return;
         staticBtn.setText(prefs.staticMode() ? "兼容模式（静态壁纸定时换）：开" : "兼容模式（静态壁纸定时换）：关");
+        if (staticStatus == null) return;
+        String base = "系统壁纸设置里找不到动态壁纸时用：App 每隔几分钟自己把图片设成系统静态壁纸。";
+        if (prefs.staticMode() && prefs.staticTriedAt() > 0) {
+            java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("M月d日 HH:mm", java.util.Locale.CHINA);
+            String note = prefs.staticNote();
+            if (prefs.staticLastOk()) {
+                base += "\n上次换壁纸：" + f.format(new java.util.Date(prefs.staticOkAt())) + " 成功" + (note.isEmpty() ? "" : "（" + note + "）");
+            } else {
+                base += "\n上次换壁纸：" + f.format(new java.util.Date(prefs.staticTriedAt())) + " 失败——" + note + "，两分钟后重试"
+                        + (prefs.staticOkAt() > 0 ? "；最近一次成功是 " + f.format(new java.util.Date(prefs.staticOkAt())) : "");
+            }
+        }
+        staticStatus.setText(base);
     }
 
     private void pin(Class<?> provider) {
@@ -525,6 +548,8 @@ public class MainActivity extends Activity implements Wall.Listener {
     @Override
     protected void onResume() {
         super.onResume();
+        StaticWall.ensureFresh(this);
+        updateStaticButton();
         Wall.listen(this);
         main.postDelayed(minute, 60000);
         renderPreview();

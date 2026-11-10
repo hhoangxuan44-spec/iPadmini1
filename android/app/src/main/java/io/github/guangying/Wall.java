@@ -57,9 +57,50 @@ public final class Wall {
         return p;
     }
 
+    /**
+     * 选出下一张但不保存（兼容模式用：壁纸设成功之后才 commit）。
+     * 优先用预取好的；其次只在已经存到本地的图片里挑；本地一张都没有才挑需要下载的。
+     */
+    static Photo chooseNext(Context app) {
+        List<Photo> all = Library.load(app);
+        if (all.isEmpty()) {
+            Site.imageList(app);
+            all = Library.load(app);
+        }
+        if (all.isEmpty()) return null;
+        Prefs pr = new Prefs(app);
+        Photo pre = prefetched;
+        prefetched = null;
+        if (pre != null && Library.find(all, pre.id) != null && new java.io.File(Site.root(app), pre.large).isFile()) return pre;
+        Photo p = Library.pick(app, all, pr.recent(), Calendar.getInstance(), pr.position(), true, rnd);
+        if (p == null) p = Library.pick(app, all, pr.recent(), Calendar.getInstance(), pr.position(), false, rnd);
+        return p;
+    }
+
+    /** 把 p 记为当前图片，并通知壁纸、主界面和桌面组件 */
+    static void commit(final Context app, final Photo p) {
+        new Prefs(app).setCurrent(p.id, System.currentTimeMillis());
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                for (Listener l : listeners) l.onPhoto(p);
+                Widgets.refreshAll(app);
+            }
+        });
+    }
+
+    static void prefetchNext(Context app) {
+        List<Photo> all = Library.load(app);
+        if (!all.isEmpty()) prefetch(app, all, new Prefs(app));
+    }
+
     /** 换下一张（可在任何线程调用） */
     public static void advance(final Context ctx) {
         final Context app = ctx.getApplicationContext();
+        if (new Prefs(app).staticMode()) {              // 兼容模式：先设壁纸，成功后才换当前图片
+            StaticWall.changeAsync(app);
+            return;
+        }
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -87,7 +128,6 @@ public final class Wall {
                         Widgets.refreshAll(app);
                     }
                 });
-                if (pr.staticMode()) StaticWall.apply(app);        // 兼容模式：同步设成系统静态壁纸
                 prefetch(app, all, pr);
             }
         }, "guangying-next").start();
